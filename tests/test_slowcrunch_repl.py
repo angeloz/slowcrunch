@@ -1,10 +1,11 @@
 import unittest
 
-from slowcrunch.core.errors import SessionError
+from slowcrunch.core.errors import EvaluationError, SessionError
 from slowcrunch.runtime.context import EvaluationContext
 from slowcrunch.tui.repl import (
     DisplaySettings,
     SessionState,
+    _apply_variable_snapshot,
     _completion_candidates,
     _ensure_clean_session,
     _help_lines,
@@ -195,6 +196,21 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         )
         self.assertEqual(matches, ["demo"])
 
+    def test_import_vars_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":import", ":import", 0)
+        self.assertEqual(matches, [":import-vars"])
+
+    def test_load_vars_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":load-v", ":load-v", 0)
+        self.assertEqual(matches, [":load-vars"])
+
+    def test_save_vars_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":save-v", ":save-v", 0)
+        self.assertEqual(matches, [":save-vars"])
+
     def test_show_variable_name_is_completable(self):
         context = EvaluationContext()
         context.set_variable("values", [1.0, 2.0, 3.0])
@@ -227,6 +243,9 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn(":head NAME [COUNT] Show the first items of a list variable.", lines)
         self.assertIn(":tolerance [VALUE] Show or change the zero tolerance.", lines)
         self.assertIn(":history [text|!index] Show, filter, or replay history.", lines)
+        self.assertIn(":import-vars PATH [FORMAT] Merge variables from a JSON or CSV file.", lines)
+        self.assertIn(":load-vars PATH [FORMAT] Replace user variables from a JSON or CSV file.", lines)
+        self.assertIn(":save-vars PATH [FORMAT] Write user variables to a JSON or CSV file.", lines)
         self.assertIn(":show NAME Show a variable or structured result with TUI formatting.", lines)
         self.assertIn(":tail NAME [COUNT] Show the last items of a list variable.", lines)
         self.assertIn(
@@ -367,7 +386,13 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         lines = _help_lines("vars")
         self.assertIn("Assign user variables with the form name = expression.", lines)
         self.assertIn("Protected names such as ans, pi, e, and i cannot be reassigned.", lines)
+        self.assertIn("Use :save-vars path [json|csv] to export user variables to a file.", lines)
+        self.assertIn("Use :load-vars path [json|csv] [--force] to replace current user variables from a file.", lines)
+        self.assertIn("Use :import-vars path [json|csv] to merge variables from a file into the current session.", lines)
         self.assertIn("  :vars", lines)
+        self.assertIn("  :save-vars vars.json", lines)
+        self.assertIn("  :load-vars vars.csv --force", lines)
+        self.assertIn("  :import-vars vars.json", lines)
 
     def test_basics_help_mentions_imaginary_unit(self):
         lines = _help_lines("basics")
@@ -513,6 +538,37 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         with self.assertRaises(SessionError) as error:
             _list_slice_lines(context, DisplaySettings(), "radius", 2)
         self.assertEqual(str(error.exception), "Variable 'radius' is not a list.")
+
+    def test_apply_variable_snapshot_can_merge_variables(self):
+        context = EvaluationContext()
+        context.set_variable("radius", 5.0)
+        _apply_variable_snapshot(
+            context,
+            {"values": [1.0, 2.0, 3.0]},
+            {},
+            replace=False,
+        )
+        self.assertEqual(context.get_variable("radius"), 5.0)
+        self.assertEqual(context.get_variable("values"), [1.0, 2.0, 3.0])
+
+    def test_apply_variable_snapshot_can_replace_variables(self):
+        context = EvaluationContext()
+        context.set_variable("radius", 5.0)
+        _apply_variable_snapshot(
+            context,
+            {"values": [1.0, 2.0, 3.0]},
+            {},
+            replace=True,
+        )
+        with self.assertRaises(EvaluationError):
+            context.get_variable("radius")
+        self.assertEqual(context.get_variable("values"), [1.0, 2.0, 3.0])
+
+    def test_apply_variable_snapshot_rejects_protected_names(self):
+        context = EvaluationContext()
+        with self.assertRaises(SessionError) as error:
+            _apply_variable_snapshot(context, {"ans": 5.0}, {}, replace=False)
+        self.assertEqual(str(error.exception), "Protected variable cannot be imported: ans")
 
     def test_history_lines_filter_entries(self):
         context = EvaluationContext()

@@ -12,6 +12,7 @@ from slowcrunch.runtime.builtins import builtin_function_groups
 from slowcrunch.runtime.context import EvaluationContext
 from slowcrunch.runtime.numbers import ANGLE_FORMAT_MODES, FORMAT_MODES, format_value
 from slowcrunch.runtime.session_store import SessionStore
+from slowcrunch.runtime.variable_store import SUPPORTED_VARIABLE_FORMATS, VariableStore
 
 REPL_COMMANDS = (
     ":angles",
@@ -22,11 +23,14 @@ REPL_COMMANDS = (
     ":head",
     ":help",
     ":history",
+    ":import-vars",
     ":load",
+    ":load-vars",
     ":new",
     ":rename-session",
     ":reset",
     ":save",
+    ":save-vars",
     ":saveas",
     ":sessions",
     ":show",
@@ -366,11 +370,14 @@ def _help_lines(topic=None):
             ":head NAME [COUNT] Show the first items of a list variable.",
             ":help [topic] Show general help or help for a topic.",
             ":history [text|!index] Show, filter, or replay history.",
+            ":import-vars PATH [FORMAT] Merge variables from a JSON or CSV file.",
             ":load NAME Load a saved session.",
+            ":load-vars PATH [FORMAT] Replace user variables from a JSON or CSV file.",
             ":new      Start a new empty session.",
             ":rename-session NAME Rename the current saved session.",
             ":reset    Reset the current in-memory session.",
             ":save [NAME] Save the current session.",
+            ":save-vars PATH [FORMAT] Write user variables to a JSON or CSV file.",
             ":saveas NAME Save the current session under a new name.",
             ":sessions List saved sessions.",
             ":show NAME Show a variable or structured result with TUI formatting.",
@@ -442,7 +449,7 @@ def _help_lines(topic=None):
             "Use a trailing ';' to continue a multi-statement program on the next line.",
             "The continuation prompt is '.. ' while additional input is expected.",
             "Built-in constants include pi, e, and i.",
-            "The ans variable stores the last numeric result.",
+            "The ans variable stores the last evaluated value.",
             "Examples:",
             "  2 + 3 * 4",
             "  2 + 3i",
@@ -624,6 +631,10 @@ def _help_lines(topic=None):
             "Use :vars to list user-defined variables.",
             "Protected names such as ans, pi, e, and i cannot be reassigned.",
             "Use ans to reuse the last evaluated value.",
+            "Use :save-vars path [json|csv] to export user variables to a file.",
+            "Use :load-vars path [json|csv] [--force] to replace current user variables from a file.",
+            "Use :import-vars path [json|csv] to merge variables from a file into the current session.",
+            "CSV files use name, kind, and value columns; value is stored as compact JSON.",
             "Examples:",
             "  radius = 5",
             "  z = 2 + 3i",
@@ -631,6 +642,9 @@ def _help_lines(topic=None):
             "  mass = 12 / 3",
             "  pi * radius ^ 2",
             "  :vars",
+            "  :save-vars vars.json",
+            "  :load-vars vars.csv --force",
+            "  :import-vars vars.json",
         ]
 
     if topic == "sessions":
@@ -736,6 +750,38 @@ def _start_new_session():
     return EvaluationContext(), SessionState()
 
 
+def _variable_file_arguments(arguments, usage, allow_force=False):
+    force_requested = _command_force_requested(arguments) if allow_force else False
+    cleaned_arguments = _command_arguments(arguments) if allow_force else list(arguments)
+
+    if len(cleaned_arguments) not in {1, 2}:
+        raise SessionError(usage)
+
+    path = cleaned_arguments[0]
+    format_name = cleaned_arguments[1].lower() if len(cleaned_arguments) == 2 else None
+    if format_name is not None and format_name not in SUPPORTED_VARIABLE_FORMATS:
+        raise SessionError(usage)
+
+    return path, format_name, force_requested
+
+
+def _clear_user_variables(context):
+    for name in tuple(context.user_variables()):
+        context.delete_variable(name)
+
+
+def _apply_variable_snapshot(context, variables, variable_kinds, replace=False):
+    for name in variables:
+        if name in context.protected_variables:
+            raise SessionError(f"Protected variable cannot be imported: {name}")
+
+    if replace:
+        _clear_user_variables(context)
+
+    for name, value in variables.items():
+        context.set_variable(name, value, variable_kinds.get(name))
+
+
 def _read_statement():
     lines = []
 
@@ -769,18 +815,20 @@ def _read_statement():
         return text
 
 
-def run_repl(session_store=None):
+def run_repl(session_store=None, variable_store=None):
     context = EvaluationContext()
     session_state = SessionState()
     display_settings = DisplaySettings()
     session_store = session_store or SessionStore()
+    variable_store = variable_store or VariableStore()
     _configure_readline(context, session_store)
 
     print("slowcrunch")
     print("Type an expression or 'quit' to exit.")
     print(
-        "Commands: :angles, :clear, :delete, :format, :functions, :head, :help, :history, :load, "
-        ":new, :rename-session, :reset, :save, :saveas, :sessions, :show, :status, :tail, :tolerance, :vars"
+        "Commands: :angles, :clear, :delete, :format, :functions, :head, :help, :history, :import-vars, "
+        ":load, :load-vars, :new, :rename-session, :reset, :save, :save-vars, :saveas, :sessions, "
+        ":show, :status, :tail, :tolerance, :vars"
     )
 
     while True:
@@ -925,6 +973,50 @@ def run_repl(session_store=None):
 
                 if command == ":sessions":
                     _print_sessions(session_store)
+                    continue
+
+                if command == ":save-vars":
+                    path, format_name, _ = _variable_file_arguments(
+                        parts[1:],
+                        "Usage: :save-vars path [json|csv]",
+                    )
+                    variable_file = variable_store.save(context, path, format_name)
+                    print(
+                        f"Saved {variable_file.variable_count} variable(s) to {variable_file.path} "
+                        f"as {variable_file.format_name}."
+                    )
+                    continue
+
+                if command == ":import-vars":
+                    path, format_name, _ = _variable_file_arguments(
+                        parts[1:],
+                        "Usage: :import-vars path [json|csv]",
+                    )
+                    variables, variable_kinds, variable_file = variable_store.load(path, format_name)
+                    _apply_variable_snapshot(context, variables, variable_kinds, replace=False)
+                    _mark_session_dirty(session_state)
+                    _configure_readline(context, session_store)
+                    print(
+                        f"Imported {variable_file.variable_count} variable(s) from {variable_file.path} "
+                        f"as {variable_file.format_name}."
+                    )
+                    continue
+
+                if command == ":load-vars":
+                    path, format_name, force_requested = _variable_file_arguments(
+                        parts[1:],
+                        "Usage: :load-vars path [json|csv] [--force]",
+                        allow_force=True,
+                    )
+                    _ensure_clean_session(session_state, ":load-vars", force_requested)
+                    variables, variable_kinds, variable_file = variable_store.load(path, format_name)
+                    _apply_variable_snapshot(context, variables, variable_kinds, replace=True)
+                    _mark_session_dirty(session_state)
+                    _configure_readline(context, session_store)
+                    print(
+                        f"Loaded {variable_file.variable_count} variable(s) from {variable_file.path} "
+                        f"as {variable_file.format_name}."
+                    )
                     continue
 
                 if command == ":save":

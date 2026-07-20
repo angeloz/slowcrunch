@@ -25,15 +25,16 @@ The project currently provides a small REPL-based TUI with:
 - list literals such as `[1, 2, 3]`
 - built-in functions across trigonometric, inverse trigonometric, hyperbolic, logarithmic, complex, statistics, and formatting categories
 - built-in constants: `pi`, `e`, `i`
-- `ans` for the last result
+- `ans` for the last evaluated value
 - complex numbers such as `2 + 3i` and `sqrt(-1)`
 - user variable assignment such as `x = 2 * 5`
 - user-defined functions such as `area(r) = pi * r ^ 2`
-- `:angles`, `:clear`, `:delete`, `:format`, `:functions`, `:history`, `:help`, `:load`, `:new`, `:rename-session`, `:reset`, `:save`, `:saveas`, `:sessions`, `:status`, `:tolerance`, and `:vars` commands
+- `:angles`, `:clear`, `:delete`, `:format`, `:functions`, `:help`, `:history`, `:import-vars`, `:load`, `:load-vars`, `:new`, `:rename-session`, `:reset`, `:save`, `:save-vars`, `:saveas`, `:sessions`, `:status`, `:tolerance`, and `:vars` commands
 - history filtering with `:history text` and history replay with `:history !index`
 - output modes: `plain`, `scientific`, `engineering`, and `si`
 - topic help such as `:help functions` and `:help vars`
 - named or timestamped session save/load
+- variable export, import, and load in JSON or CSV
 - multi-statement programs separated by newline or `;`
 - keyboard history support through `readline` when available
 
@@ -69,7 +70,7 @@ python3 -m unittest discover -v
 $ python3 -m slowcrunch
 slowcrunch
 Type an expression or 'quit' to exit.
-Commands: :angles, :clear, :delete, :format, :functions, :help, :history, :load, :new, :rename-session, :reset, :save, :saveas, :sessions, :status, :tolerance, :vars
+Commands: :angles, :clear, :delete, :format, :functions, :head, :help, :history, :import-vars, :load, :load-vars, :new, :rename-session, :reset, :save, :save-vars, :saveas, :sessions, :show, :status, :tail, :tolerance, :vars
 >> 2 + 3 * 4
 14.0
 >> 10k + 25
@@ -199,6 +200,16 @@ Replaying #3: area(r) = pi * r ^ 2
 Defined area(r)
 >> :save demo
 Saved session 'demo' at 2026-07-20T12:34:56+02:00
+>> :save-vars vars.json
+Saved 1 variable(s) to vars.json as json.
+>> :delete var radius
+Deleted variable 'radius'.
+>> :import-vars vars.json
+Imported 1 variable(s) from vars.json as json.
+>> :save-vars vars.csv
+Saved 1 variable(s) to vars.csv as csv.
+>> :load-vars vars.csv --force
+Loaded 1 variable(s) from vars.csv as csv.
 >> :status
 Session: demo
 Saved at: 2026-07-20T12:34:56+02:00
@@ -295,6 +306,40 @@ Use these commands to manage the current interactive session:
 `:tolerance` shows or changes the near-zero normalization threshold.  
 `:reset` clears the in-memory session state.  
 `:delete` removes an explicit target and never guesses what should be deleted.
+
+## Variable Import And Export
+
+User variables can be written to or read from standalone files without touching the full session state.
+
+Examples:
+
+```text
+:save-vars vars.json
+:save-vars vars.csv
+:import-vars vars.json
+:load-vars vars.csv --force
+```
+
+`:save-vars` exports only user-defined variables.  
+`:import-vars` merges variables from a file into the current session.  
+`:load-vars` replaces the current user variables and requires `--force` when the session is dirty.  
+Formats are inferred from the file extension unless you pass `json` or `csv` explicitly.
+
+JSON accepts two forms:
+
+- native slowcrunch files with variable metadata
+- plain JSON objects such as `{"radius": 5, "values": [1, 2, 3]}`
+
+CSV uses one row per variable with these columns:
+
+```text
+name,kind,value
+radius,,5.0
+values,,[1.0,2.0,3.0]
+bearing,angle,0.7853981633974483
+```
+
+The `value` column stores compact JSON so lists and complex values remain lossless.
 
 ## History Commands
 
