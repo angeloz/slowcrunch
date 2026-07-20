@@ -7,6 +7,8 @@ from slowcrunch.tui.repl import (
     _completion_candidates,
     _ensure_clean_session,
     _help_lines,
+    _history_lines,
+    _history_replay_entry,
     _requires_continuation,
     _status_lines,
 )
@@ -157,6 +159,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
     def test_general_help_mentions_help_topics(self):
         lines = _help_lines()
+        self.assertIn(":history [text|!index] Show, filter, or replay history.", lines)
         self.assertIn(
             "Help topics: basics, clear, delete, functions, history, new, reset, sessions, status, vars",
             lines,
@@ -193,6 +196,12 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         lines = _help_lines("new")
         self.assertIn("Use :new to start a fresh empty session.", lines)
         self.assertIn("use :new --force or save first.", " ".join(lines).lower())
+
+    def test_history_help_mentions_filter_and_replay(self):
+        lines = _help_lines("history")
+        self.assertIn("Use :history text to filter entries by expression or rendered result.", lines)
+        self.assertIn("Use :history !index to replay a previous entry.", lines)
+        self.assertIn("  :history !3", lines)
 
     def test_status_help_mentions_dirty_state(self):
         lines = _help_lines("status")
@@ -237,6 +246,51 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertEqual(lines[2], "Modified: yes")
         self.assertEqual(lines[3], "User variables: 1")
         self.assertEqual(lines[4], "User functions: 1")
+
+    def test_history_lines_show_all_entries(self):
+        context = EvaluationContext()
+        context.record_entry("radius = 5", 5.0)
+        context.record_entry("area(r) = pi * r ^ 2", "Defined area(r)")
+        lines = _history_lines(context)
+        self.assertEqual(lines[0], "1: radius = 5 = 5.0")
+        self.assertEqual(lines[1], "2: area(r) = pi * r ^ 2 = Defined area(r)")
+
+    def test_history_lines_filter_entries(self):
+        context = EvaluationContext()
+        context.record_entry("radius = 5", 5.0)
+        context.record_entry("area(r) = pi * r ^ 2", "Defined area(r)")
+        lines = _history_lines(context, "area")
+        self.assertEqual(lines, ["2: area(r) = pi * r ^ 2 = Defined area(r)"])
+
+    def test_history_lines_report_missing_filter_match(self):
+        context = EvaluationContext()
+        context.record_entry("radius = 5", 5.0)
+        lines = _history_lines(context, "mass")
+        self.assertEqual(lines, ["No history entries matching 'mass'."])
+
+    def test_history_replay_entry_returns_indexed_entry(self):
+        context = EvaluationContext()
+        context.record_entry("radius = 5", 5.0)
+        entry_index, entry = _history_replay_entry(context, "!1")
+        self.assertEqual(entry_index, 1)
+        self.assertEqual(entry["expression"], "radius = 5")
+
+    def test_history_replay_entry_rejects_invalid_token(self):
+        context = EvaluationContext()
+        context.record_entry("radius = 5", 5.0)
+        with self.assertRaises(SessionError) as error:
+            _history_replay_entry(context, "radius")
+        self.assertEqual(
+            str(error.exception),
+            "History replay requires !index, such as :history !3.",
+        )
+
+    def test_history_replay_entry_rejects_unknown_index(self):
+        context = EvaluationContext()
+        context.record_entry("radius = 5", 5.0)
+        with self.assertRaises(SessionError) as error:
+            _history_replay_entry(context, "!3")
+        self.assertEqual(str(error.exception), "Unknown history entry: 3")
 
     def test_ensure_clean_session_raises_when_dirty(self):
         with self.assertRaises(SessionError) as error:

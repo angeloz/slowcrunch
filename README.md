@@ -23,6 +23,7 @@ The project currently provides a small REPL-based TUI with:
 - user variable assignment such as `x = 2 * 5`
 - user-defined functions such as `area(r) = pi * r ^ 2`
 - `:clear`, `:delete`, `:functions`, `:history`, `:help`, `:load`, `:new`, `:rename-session`, `:reset`, `:save`, `:saveas`, `:sessions`, `:status`, and `:vars` commands
+- history filtering with `:history text` and history replay with `:history !index`
 - topic help such as `:help functions` and `:help vars`
 - named or timestamped session save/load
 - multi-statement programs separated by newline or `;`
@@ -79,6 +80,12 @@ area(r)
 Help: functions
 Built-in functions include abs, sin, cos, tan, sqrt, and log.
 Define user functions with the form name(param1, param2) = expression.
+>> :history area
+3: area(r) = pi * r ^ 2 = Defined area(r)
+4: area(radius) = 78.53981633974483
+>> :history !3
+Replaying #3: area(r) = pi * r ^ 2
+Defined area(r)
 >> :save demo
 Saved session 'demo' at 2026-07-20T12:34:56+02:00
 >> :status
@@ -136,6 +143,9 @@ Saved sessions are written as JSON files in `.slowcrunch-sessions/` by default.
 Examples:
 
 ```text
+:history
+:history area
+:history !3
 :save
 :save demo
 :sessions
@@ -165,6 +175,20 @@ Use these commands to manage the current interactive session:
 `:status` prints the current session name, last save time, dirty state, and counts.  
 `:reset` clears the in-memory session state.  
 `:delete` removes an explicit target and never guesses what should be deleted.
+
+## History Commands
+
+Use `:history` to inspect or reuse previous entries:
+
+```text
+:history
+:history area
+:history !3
+```
+
+`:history` lists recorded expressions and their rendered results.  
+`:history text` filters by expression or rendered result.  
+`:history !index` replays the selected entry in the current session.
 
 ## Multi-Statement Input
 

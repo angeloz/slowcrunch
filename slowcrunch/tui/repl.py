@@ -101,12 +101,9 @@ def _configure_readline(context, session_store):
     readline.parse_and_bind('"\\e[B": next-history')
 
 
-def _print_history(context):
-    if not context.entries:
-        print("No history yet.")
-        return
-    for index, entry in enumerate(context.entries, start=1):
-        print(f"{index}: {entry['expression']} = {entry['result']}")
+def _print_history(context, query=None):
+    for line in _history_lines(context, query):
+        print(line)
 
 
 def _print_variables(context):
@@ -156,6 +153,40 @@ def _print_status(context, session_state):
         print(line)
 
 
+def _history_lines(context, query=None):
+    if not context.entries:
+        return ["No history yet."]
+
+    entries = list(enumerate(context.entries, start=1))
+    if query:
+        lowered_query = query.lower()
+        entries = [
+            (index, entry)
+            for index, entry in entries
+            if lowered_query in entry["expression"].lower()
+            or lowered_query in str(entry["result"]).lower()
+        ]
+        if not entries:
+            return [f"No history entries matching '{query}'."]
+
+    return [f"{index}: {entry['expression']} = {entry['result']}" for index, entry in entries]
+
+
+def _history_replay_entry(context, token):
+    if not token.startswith("!"):
+        raise SessionError("History replay requires !index, such as :history !3.")
+
+    raw_index = token[1:]
+    if not raw_index.isdigit() or int(raw_index) < 1:
+        raise SessionError("History replay requires !index, such as :history !3.")
+
+    entry_index = int(raw_index)
+    if entry_index > len(context.entries):
+        raise SessionError(f"Unknown history entry: {entry_index}")
+
+    return entry_index, context.entries[entry_index - 1]
+
+
 def _help_lines(topic=None):
     if topic is None:
         return [
@@ -164,7 +195,7 @@ def _help_lines(topic=None):
             ":delete   Delete a variable, function, or saved session.",
             ":functions Show user-defined functions.",
             ":help [topic] Show general help or help for a topic.",
-            ":history Show evaluated expressions and results.",
+            ":history [text|!index] Show, filter, or replay history.",
             ":load NAME Load a saved session.",
             ":new      Start a new empty session.",
             ":rename-session NAME Rename the current saved session.",
@@ -234,12 +265,16 @@ def _help_lines(topic=None):
         return [
             "Help: history",
             "Use :history to list evaluated inputs and their results.",
+            "Use :history text to filter entries by expression or rendered result.",
+            "Use :history !index to replay a previous entry.",
             "The history includes assignments and function definitions.",
             "Use ans to reuse the last numeric result.",
             "Examples:",
             "  10 / 2",
             "  ans + 3",
             "  :history",
+            "  :history area",
+            "  :history !3",
         ]
 
     if topic == "new":
@@ -469,7 +504,26 @@ def run_repl(session_store=None):
                     continue
 
                 if command == ":history":
-                    _print_history(context)
+                    if len(parts) == 1:
+                        _print_history(context)
+                        continue
+
+                    if parts[1].startswith("!"):
+                        if len(parts) != 2:
+                            raise SessionError("Usage: :history [text|!index]")
+                        entry_index, entry = _history_replay_entry(context, parts[1])
+                        preview = entry["expression"].replace("\n", "\\n")
+                        print(f"Replaying #{entry_index}: {preview}")
+                        try:
+                            result, context = evaluate_expression(entry["expression"], context)
+                        except SlowCrunchError as error:
+                            print(f"Error: {error}")
+                            continue
+                        _mark_session_dirty(session_state)
+                        print(result)
+                        continue
+
+                    _print_history(context, " ".join(parts[1:]))
                     continue
 
                 if command == ":vars":
