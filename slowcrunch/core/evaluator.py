@@ -26,7 +26,7 @@ class Evaluator:
                 return operand
             if node.operator == "-":
                 return -operand
-            raise EvaluationError(f"Operatore unario non supportato: {node.operator}")
+            raise EvaluationError(f"Unsupported unary operator: {node.operator}")
 
         if isinstance(node, BinaryOpNode):
             left = self.evaluate(node.left)
@@ -39,11 +39,11 @@ class Evaluator:
             try:
                 return function(*arguments)
             except TypeError as error:
-                raise EvaluationError(f"Argomenti non validi per la funzione '{node.name}'.") from error
+                raise EvaluationError(f"Invalid arguments for function '{node.name}'.") from error
             except ValueError as error:
                 raise EvaluationError(str(error)) from error
 
-        raise EvaluationError(f"Nodo non supportato: {type(node).__name__}")
+        raise EvaluationError(f"Unsupported node: {type(node).__name__}")
 
     def apply_binary_operator(self, operator, left, right):
         if operator == "+":
@@ -54,8 +54,8 @@ class Evaluator:
             return left * right
         if operator == "/":
             if right == 0:
-                raise EvaluationError("Non e' possibile dividere per zero.")
+                raise EvaluationError("Division by zero is not allowed.")
             return left / right
         if operator == "^":
             return math.pow(left, right)
-        raise EvaluationError(f"Operatore non supportato: {operator}")
+        raise EvaluationError(f"Unsupported operator: {operator}")

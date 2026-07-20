@@ -18,7 +18,7 @@ def _configure_readline():
 
 def _print_history(context):
     if not context.entries:
-        print("Nessuna cronologia.")
+        print("No history yet.")
         return
     for index, entry in enumerate(context.entries, start=1):
         print(f"{index}: {entry['expression']} = {entry['result']}")
@@ -27,7 +27,7 @@ def _print_history(context):
 def _print_variables(context):
     variables = context.user_variables()
     if not variables:
-        print("Nessuna variabile utente.")
+        print("No user variables.")
         return
     for name in sorted(variables):
         print(f"{name} = {variables[name]}")
@@ -38,8 +38,8 @@ def run_repl():
     _configure_readline()
 
     print("slowcrunch")
-    print("Digita un'espressione oppure 'quit' per uscire.")
-    print("Comandi: :history, :vars")
+    print("Type an expression or 'quit' to exit.")
+    print("Commands: :history, :vars")
 
     while True:
         try:
@@ -48,7 +48,7 @@ def run_repl():
             print()
             break
         except KeyboardInterrupt:
-            print("\nInterrotto.")
+            print("\nInterrupted.")
             break
 
         if not line:
@@ -68,7 +68,7 @@ def run_repl():
         try:
             result, context = evaluate_expression(line, context)
         except SlowCrunchError as error:
-            print(f"Errore: {error}")
+            print(f"Error: {error}")
             continue
 
         print(result)

@@ -48,7 +48,7 @@ def tokenize(text):
                 index += 1
             value = text[start:index]
             if dot_count > 1 or value == ".":
-                raise TokenizeError(f"Numero non valido in posizione {start}.")
+                raise TokenizeError(f"Invalid number at position {start}.")
             tokens.append(Token("NUMBER", value, start))
             continue
 
@@ -59,7 +59,7 @@ def tokenize(text):
             tokens.append(Token("IDENT", text[start:index], start))
             continue
 
-        raise TokenizeError(f"Carattere non valido '{char}' in posizione {index}.")
+        raise TokenizeError(f"Invalid character '{char}' at position {index}.")
 
     tokens.append(Token("EOF", "", len(text)))
     return tokens

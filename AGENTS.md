@@ -1,65 +1,67 @@
 # AGENTS.md
 
-Nome del progetto: `slowcrunch`
+Project name: `slowcrunch`
 
-## Obiettivo del progetto
+## Project Goal
 
-Realizzare `slowcrunch`, una calcolatrice scientifica TUI ispirata all'esperienza utente di SpeedCrunch, mantenendo il progetto leggero, modulare ed estendibile.
+Build `slowcrunch`, a scientific TUI calculator inspired by the SpeedCrunch user experience, while keeping the project lightweight, modular, and extensible.
 
-## Vincoli principali
+## Core Constraints
 
-- Mantenere il codice compatto e leggibile.
-- Preservare per quanto possibile la stessa esperienza utente in ambiente TUI.
-- Ridurre al minimo le dipendenze esterne.
-- Progettare un'architettura modulare che consenta di aggiungere nuove funzioni senza riscrivere il core.
-- Sviluppare passo passo, evitando di introdurre troppe feature insieme.
+- Keep the code compact and readable.
+- Preserve the SpeedCrunch-like user experience in TUI form as closely as practical.
+- Minimize external dependencies.
+- Design a modular architecture that supports new features without rewriting the core.
+- Develop incrementally, avoiding large multi-feature jumps.
+- All project documentation, user-facing interface text, exposed commands, and code comments must be in English.
+- Italian is used only for collaboration during development.
 
-## Principi di progettazione
+## Design Principles
 
-- Separare nettamente il motore di calcolo dalla TUI.
-- Evitare `eval()` e scorciatoie non sicure: parsing ed evaluation devono essere espliciti.
-- Preferire librerie standard quando sufficienti.
-- Introdurre una dipendenza esterna solo quando sostituisce una quantità significativa di codice complesso o fragile.
-- Ogni nuova feature deve poter essere testata in isolamento.
+- Keep the calculation engine clearly separated from the TUI.
+- Avoid `eval()` and unsafe shortcuts: parsing and evaluation must be explicit.
+- Prefer the standard library when it is sufficient.
+- Introduce an external dependency only when it replaces a meaningful amount of complex or fragile code.
+- Every new feature must be testable in isolation.
 
-## Architettura proposta
+## Proposed Architecture
 
-- `core/`: tokenizer, parser, AST, evaluator, contesto di esecuzione.
-- `runtime/`: variabili, funzioni utente, costanti, stato `ans`, precisione.
-- `tui/`: editor di input, history, rendering risultati, scorciatoie tastiera.
-- `tests/`: test unitari del parser/evaluator e test di integrazione dei flussi principali.
+- `core/`: tokenizer, parser, AST, evaluator, execution context.
+- `runtime/`: variables, user functions, constants, `ans` state, precision handling.
+- `tui/`: input editor, history, result rendering, keyboard shortcuts.
+- `tests/`: unit tests for parser/evaluator and integration tests for primary flows.
 
-## Priorità di sviluppo
+## Development Priorities
 
-### Fase 1
+### Phase 1
 
-- REPL/TUI di base.
-- Valutazione espressioni aritmetiche.
-- Precedenza operatori e parentesi.
-- Funzioni scientifiche essenziali.
-- History e richiamo dell'ultimo risultato (`ans`).
+- Basic REPL/TUI.
+- Arithmetic expression evaluation.
+- Operator precedence and parentheses.
+- Essential scientific functions.
+- History and reuse of the last result (`ans`).
 
-### Fase 2
+### Phase 2
 
-- Variabili utente.
-- Funzioni definite dall'utente.
-- Autocompletamento.
-- Messaggi di errore migliori.
+- User variables.
+- User-defined functions.
+- Autocompletion.
+- Better error messages.
 
-### Fase 3
+### Phase 3
 
-- Costanti scientifiche.
-- Numeri complessi.
-- Miglioramenti UX della TUI per avvicinarsi ulteriormente all'esperienza SpeedCrunch.
+- Scientific constants.
+- Complex numbers.
+- TUI UX improvements to move closer to the SpeedCrunch experience.
 
-## Regole operative
+## Working Rules
 
-- Implementare una feature alla volta.
-- Scrivere o aggiornare i test insieme alla feature.
-- Tenere la TUI come layer sottile sopra il core.
-- Evitare accoppiamenti stretti tra parsing, evaluation e rendering.
-- Prima di aggiungere dipendenze, verificare se il requisito puo' essere soddisfatto con codice locale semplice.
+- Implement one feature at a time.
+- Write or update tests together with the feature.
+- Keep the TUI as a thin layer above the core.
+- Avoid tight coupling between parsing, evaluation, and rendering.
+- Before adding dependencies, verify whether the requirement can be handled with simple local code.
 
-## Obiettivo UX
+## UX Goal
 
-La TUI deve risultare veloce da tastiera, con feedback immediato, history utile e un flusso di inserimento naturale. L'obiettivo non e' copiare l'interfaccia grafica originale, ma riprodurne l'efficienza operativa nel terminale.
+The TUI should feel fast from the keyboard, provide immediate feedback, maintain useful history, and support a natural input flow. The goal is not to copy the original graphical interface, but to reproduce its operational efficiency in the terminal.

@@ -16,17 +16,17 @@ class EvaluationContext:
 
     def get_variable(self, name):
         if name not in self.variables:
-            raise EvaluationError(f"Variabile sconosciuta: {name}")
+            raise EvaluationError(f"Unknown variable: {name}")
         return self.variables[name]
 
     def get_function(self, name):
         if name not in self.functions:
-            raise EvaluationError(f"Funzione sconosciuta: {name}")
+            raise EvaluationError(f"Unknown function: {name}")
         return self.functions[name]
 
     def set_variable(self, name, value):
         if name in self.protected_variables:
-            raise EvaluationError(f"Variabile protetta, non assegnabile: {name}")
+            raise EvaluationError(f"Protected variable cannot be assigned: {name}")
         self.variables[name] = value
 
     def set_ans(self, value):

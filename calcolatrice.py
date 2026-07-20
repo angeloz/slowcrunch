@@ -1,48 +1,48 @@
-"""Piccola calcolatrice da terminale con quattro operazioni base."""
+"""Small terminal calculator with four basic operations."""
 
 
-def somma(a, b):
+def add(a, b):
     return a + b
 
 
-def sottrai(a, b):
+def subtract(a, b):
     return a - b
 
 
-def moltiplica(a, b):
+def multiply(a, b):
     return a * b
 
 
-def dividi(a, b):
+def divide(a, b):
     if b == 0:
-        raise ValueError("Non e' possibile dividere per zero.")
+        raise ValueError("Division by zero is not allowed.")
     return a / b
 
 
 def main():
-    print("Calcolatrice semplice")
-    primo_numero = float(input("Inserisci il primo numero: "))
-    secondo_numero = float(input("Inserisci il secondo numero: "))
-    operazione = input("Scegli l'operazione (+, -, *, /): ").strip()
+    print("Simple calculator")
+    first_number = float(input("Enter the first number: "))
+    second_number = float(input("Enter the second number: "))
+    operation = input("Choose an operation (+, -, *, /): ").strip()
 
-    operazioni = {
-        "+": somma,
-        "-": sottrai,
-        "*": moltiplica,
-        "/": dividi,
+    operations = {
+        "+": add,
+        "-": subtract,
+        "*": multiply,
+        "/": divide,
     }
 
-    if operazione not in operazioni:
-        print("Operazione non valida.")
+    if operation not in operations:
+        print("Invalid operation.")
         return
 
     try:
-        risultato = operazioni[operazione](primo_numero, secondo_numero)
-    except ValueError as errore:
-        print(errore)
+        result = operations[operation](first_number, second_number)
+    except ValueError as error:
+        print(error)
         return
 
-    print(f"Risultato: {risultato}")
+    print(f"Result: {result}")
 
 
 if __name__ == "__main__":

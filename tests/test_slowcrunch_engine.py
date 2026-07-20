@@ -48,11 +48,11 @@ class SlowCrunchEngineTest(unittest.TestCase):
 
     def test_variable_assignment(self):
         context = EvaluationContext()
-        result, context = evaluate_expression("massa = 12 / 3", context)
-        reused, context = evaluate_expression("massa + 2", context)
+        result, context = evaluate_expression("mass = 12 / 3", context)
+        reused, context = evaluate_expression("mass + 2", context)
         self.assertEqual(result, 4.0)
         self.assertEqual(reused, 6.0)
-        self.assertEqual(context.get_variable("massa"), 4.0)
+        self.assertEqual(context.get_variable("mass"), 4.0)
 
     def test_protected_variable_cannot_be_assigned(self):
         with self.assertRaises(EvaluationError):

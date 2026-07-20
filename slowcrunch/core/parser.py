@@ -11,7 +11,7 @@ class Parser:
         expression = self.parse_statement()
         if self.current().kind != "EOF":
             token = self.current()
-            raise ParseError(f"Token inatteso '{token.value}' in posizione {token.position}.")
+            raise ParseError(f"Unexpected token '{token.value}' at position {token.position}.")
         return expression
 
     def parse_statement(self):
@@ -85,14 +85,14 @@ class Parser:
                         if not self.match("COMMA"):
                             break
                 if not self.match("RPAREN"):
-                    raise ParseError("Parentesi chiusa mancante nella chiamata di funzione.")
+                    raise ParseError("Missing closing parenthesis in function call.")
                 return CallNode(name, arguments)
             return NameNode(name)
 
         if self.match("LPAREN"):
             node = self.parse_expression()
             if not self.match("RPAREN"):
-                raise ParseError("Parentesi chiusa mancante.")
+                raise ParseError("Missing closing parenthesis.")
             return node
 
-        raise ParseError(f"Token inatteso '{token.value}' in posizione {token.position}.")
+        raise ParseError(f"Unexpected token '{token.value}' at position {token.position}.")
