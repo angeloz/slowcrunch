@@ -80,9 +80,9 @@ python3 -m unittest discover -v
 
 ## Demo
 
-GitHub does not render `.cast` files inline, so the preview below is a static SVG poster generated from a real terminal session.
+GitHub does not render `.cast` files inline, so the preview below is an animated GIF generated from a real terminal session.
 
-![slowcrunch demo preview](demos/slowcrunch-demo.svg)
+![slowcrunch demo preview](demos/slowcrunch-demo.gif)
 
 An asciinema demo is included in the repository:
 
@@ -93,7 +93,7 @@ asciinema play demos/slowcrunch-demo.cast
 Files:
 
 - `demos/slowcrunch-demo.cast`
-- `demos/slowcrunch-demo.svg`
+- `demos/slowcrunch-demo.gif`
 
 The demo was recorded from a real `slowcrunch` session and showcases:
 
