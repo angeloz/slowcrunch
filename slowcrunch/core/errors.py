@@ -12,3 +12,7 @@ class ParseError(SlowCrunchError):
 
 class EvaluationError(SlowCrunchError):
     """Raised when evaluation fails."""
+
+
+class SessionError(SlowCrunchError):
+    """Raised when session persistence fails."""

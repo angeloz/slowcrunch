@@ -31,6 +31,16 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         matches = _completion_candidates(context, ":f", ":f", 0)
         self.assertEqual(matches, [":functions"])
 
+    def test_save_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":sa", ":sa", 0)
+        self.assertEqual(matches, [":save"])
+
+    def test_sessions_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":se", ":se", 0)
+        self.assertEqual(matches, [":sessions"])
+
     def test_command_completion_does_not_mix_expression_names(self):
         context = EvaluationContext()
         matches = _completion_candidates(context, "s")
@@ -48,6 +58,17 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         matches = _completion_candidates(context, "fu", ":help fu", 6)
         self.assertEqual(matches, ["functions"])
 
+    def test_load_session_name_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(
+            context,
+            "de",
+            ":load de",
+            6,
+            session_names=["demo", "weekly"],
+        )
+        self.assertEqual(matches, ["demo"])
+
     def test_user_defined_function_is_completable(self):
         context = EvaluationContext()
         context.set_function("area", ["radius"], None)
@@ -56,8 +77,9 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
     def test_general_help_mentions_help_topics(self):
         lines = _help_lines()
-        self.assertIn("Help topics: basics, functions, history, vars", lines)
+        self.assertIn("Help topics: basics, functions, history, sessions, vars", lines)
         self.assertIn("  :help functions", lines)
+        self.assertIn("  :help sessions", lines)
 
     def test_functions_help_explains_definition_syntax(self):
         lines = _help_lines("functions")
@@ -75,7 +97,12 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
     def test_unknown_help_topic_lists_available_topics(self):
         lines = _help_lines("unknown")
         self.assertEqual(lines[0], "Unknown help topic 'unknown'.")
-        self.assertEqual(lines[1], "Available topics: basics, functions, history, vars")
+        self.assertEqual(lines[1], "Available topics: basics, functions, history, sessions, vars")
+
+    def test_sessions_help_explains_save_and_load(self):
+        lines = _help_lines("sessions")
+        self.assertIn("Use :save [name] to store the current session as JSON.", lines)
+        self.assertIn("  :load demo", lines)
 
 
 if __name__ == "__main__":

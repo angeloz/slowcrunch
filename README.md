@@ -22,8 +22,9 @@ The project currently provides a small REPL-based TUI with:
 - `ans` for the last result
 - user variable assignment such as `x = 2 * 5`
 - user-defined functions such as `area(r) = pi * r ^ 2`
-- `:functions`, `:history`, `:help`, and `:vars` commands
+- `:functions`, `:history`, `:help`, `:load`, `:save`, `:sessions`, and `:vars` commands
 - topic help such as `:help functions` and `:help vars`
+- named or timestamped session save/load
 - keyboard history support through `readline` when available
 
 This is an early foundation, not yet a full SpeedCrunch-compatible clone.
@@ -58,7 +59,7 @@ python3 -m unittest discover -v
 $ python3 -m slowcrunch
 slowcrunch
 Type an expression or 'quit' to exit.
-Commands: :functions, :help, :history, :vars
+Commands: :functions, :help, :history, :load, :save, :sessions, :vars
 >> 2 + 3 * 4
 14.0
 >> radius = 5
@@ -77,6 +78,12 @@ area(r)
 Help: functions
 Built-in functions include abs, sin, cos, tan, sqrt, and log.
 Define user functions with the form name(param1, param2) = expression.
+>> :save demo
+Saved session 'demo' at 2026-07-20T12:34:56+02:00
+>> :sessions
+demo  2026-07-20T12:34:56+02:00
+>> :load demo
+Loaded session 'demo' from 2026-07-20T12:34:56+02:00
 >> :history
 1: 2 + 3 * 4 = 14.0
 2: radius = 5 = 5.0
@@ -106,3 +113,18 @@ Longer-term goals:
 - scientific constants expansion
 - complex numbers
 - a richer terminal experience closer to SpeedCrunch
+
+## Session Storage
+
+Saved sessions are written as JSON files in `.slowcrunch-sessions/` by default.
+
+Examples:
+
+```text
+:save
+:save demo
+:sessions
+:load demo
+```
+
+If `:save` is called without a name, slowcrunch generates one from the current local date and time.
