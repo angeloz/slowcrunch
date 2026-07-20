@@ -50,6 +50,30 @@ class SlowCrunchEngineTest(unittest.TestCase):
         self.assertEqual(result, 22.0)
         result, _ = evaluate_expression("mean([1, 2, 4, 5])")
         self.assertEqual(result, 3.0)
+        result, _ = evaluate_expression("median([1, 2, 4, 5])")
+        self.assertEqual(result, 3.0)
+        result, _ = evaluate_expression("mode([1, 1, 2])")
+        self.assertEqual(result, 1.0)
+        result, _ = evaluate_expression("variance([1, 2, 3])")
+        self.assertAlmostEqual(result, 2.0 / 3.0)
+        result, _ = evaluate_expression("stdev([1, 2, 3])")
+        self.assertAlmostEqual(result, math.sqrt(2.0 / 3.0))
+        result, _ = evaluate_expression("sample_variance([1, 2, 3])")
+        self.assertEqual(result, 1.0)
+        result, _ = evaluate_expression("sample_stdev([1, 2, 3])")
+        self.assertEqual(result, 1.0)
+        result, _ = evaluate_expression("cov([1, 2, 3], [2, 4, 6])")
+        self.assertEqual(result, 4.0 / 3.0)
+        result, _ = evaluate_expression("sample_cov([1, 2, 3], [2, 4, 6])")
+        self.assertEqual(result, 2.0)
+        result, _ = evaluate_expression("corr([1, 2, 3], [2, 4, 6])")
+        self.assertEqual(result, 1.0)
+        result, _ = evaluate_expression("linreg([1, 2, 3], [2, 4, 6])")
+        self.assertEqual(result, [2.0, 0.0])
+
+    def test_combinatorics_functions(self):
+        result, _ = evaluate_expression("fact(5) + perm(5, 2) + comb(5, 2)")
+        self.assertEqual(result, 150.0)
 
     def test_list_sum_accepts_empty_list(self):
         result, _ = evaluate_expression("sum([])")
@@ -65,10 +89,76 @@ class SlowCrunchEngineTest(unittest.TestCase):
             evaluate_expression("mean([])")
         self.assertEqual(str(error.exception), "Function 'mean' does not accept an empty list.")
 
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("median([])")
+        self.assertEqual(str(error.exception), "Function 'median' does not accept an empty list.")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("mode([])")
+        self.assertEqual(str(error.exception), "Function 'mode' does not accept an empty list.")
+
     def test_list_statistics_reject_non_real_elements(self):
         with self.assertRaises(EvaluationError) as error:
             evaluate_expression("sum([1, 2i])")
         self.assertEqual(str(error.exception), "Function 'sum' expects a list of real numbers.")
+
+    def test_sample_statistics_require_at_least_two_values(self):
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("sample_variance([1])")
+        self.assertEqual(str(error.exception), "Function 'sample_variance' expects at least 2 value(s).")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("sample_stdev([1])")
+        self.assertEqual(str(error.exception), "Function 'sample_stdev' expects at least 2 value(s).")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("sample_cov([1], [2])")
+        self.assertEqual(str(error.exception), "Function 'sample_cov' expects at least 2 value(s).")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("corr([1], [2])")
+        self.assertEqual(str(error.exception), "Function 'corr' expects at least 2 value(s).")
+
+    def test_mode_requires_unique_mode(self):
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("mode([1, 2, 3])")
+        self.assertEqual(str(error.exception), "Function 'mode' requires a unique mode.")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("mode([1, 1, 2, 2])")
+        self.assertEqual(str(error.exception), "Function 'mode' requires a unique mode.")
+
+    def test_bivariate_statistics_require_matching_lengths(self):
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("cov([1, 2], [3])")
+        self.assertEqual(str(error.exception), "Function 'cov' expects lists of the same length.")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("linreg([1, 2], [3, 4, 5])")
+        self.assertEqual(str(error.exception), "Function 'linreg' expects lists of the same length.")
+
+    def test_correlation_rejects_constant_inputs(self):
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("corr([1, 1, 1], [2, 3, 4])")
+        self.assertEqual(str(error.exception), "Function 'corr' requires non-constant input lists.")
+
+    def test_linreg_rejects_constant_x_inputs(self):
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("linreg([1, 1, 1], [2, 3, 4])")
+        self.assertEqual(str(error.exception), "Function 'linreg' requires a non-constant x list.")
+
+    def test_combinatorics_require_non_negative_integers(self):
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("fact(2.5)")
+        self.assertEqual(str(error.exception), "Function 'fact' expects a non-negative integer.")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("perm(5, -1)")
+        self.assertEqual(str(error.exception), "Function 'perm' expects a non-negative integer for k.")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("comb(5, 6)")
+        self.assertEqual(str(error.exception), "Function 'comb' requires k <= n.")
 
     def test_list_values_do_not_support_arithmetic_operators(self):
         with self.assertRaises(EvaluationError) as error:

@@ -94,6 +94,26 @@ Commands: :angles, :clear, :delete, :format, :functions, :help, :history, :load,
 10.0
 >> mean(values)
 3.3333333333333335
+>> median([1, 2, 4, 5])
+3.0
+>> mode([1, 1, 2])
+1.0
+>> variance([1, 2, 3])
+0.6666666666666666
+>> sample_stdev([1, 2, 3])
+1.0
+>> cov([1, 2, 3], [2, 4, 6])
+1.3333333333333333
+>> corr([1, 2, 3], [2, 4, 6])
+1.0
+>> linreg([1, 2, 3], [2, 4, 6])
+[2.0, 0.0]
+>> fact(5)
+120.0
+>> perm(5, 2)
+20.0
+>> comb(5, 2)
+10.0
 >> radius = 5
 5.0
 >> area(r) = pi * r ^ 2
@@ -375,11 +395,16 @@ slowcrunch currently includes these built-in function groups:
 - Inverse hyperbolic: `asinh`, `acosh`, `atanh`
 - Exponential and logarithmic: `exp`, `ln`, `log`, `log10`, `log2`, `sqrt`
 - Complex and utility: `abs`, `floor`, `ceil`, `re`, `im`, `conj`
-- Statistics: `len`, `sum`, `min`, `max`, `mean`
+- Statistics: `len`, `sum`, `min`, `max`, `mean`, `median`, `mode`, `variance`, `stdev`, `sample_variance`, `sample_stdev`, `cov`, `sample_cov`, `corr`, `linreg`
+- Combinatorics: `fact`, `perm`, `comb`
 - Formatting helpers: `deg`, `dms`, `hms`
 
 Inverse trigonometric functions and `arg` return angle-typed results, so they follow the active `:angles` mode.
 Statistics functions currently use list arguments such as `[1, 2, 3]`.
+`variance` and `stdev` use population formulas, while `sample_variance` and `sample_stdev` use sample formulas.
+`cov` uses the population covariance formula, while `sample_cov` uses the sample covariance formula.
+`mode` currently requires a unique mode.
+`linreg(x, y)` returns `[slope, intercept]`.
 
 ## Lists
 
