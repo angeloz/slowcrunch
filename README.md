@@ -107,7 +107,7 @@ Commands: :angles, :clear, :delete, :format, :functions, :help, :history, :load,
 >> corr([1, 2, 3], [2, 4, 6])
 1.0
 >> linreg([1, 2, 3], [2, 4, 6])
-[2.0, 0.0]
+linreg[slope=2.0, intercept=0.0]
 >> fact(5)
 120.0
 >> perm(5, 2)

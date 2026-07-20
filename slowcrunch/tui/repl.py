@@ -131,15 +131,62 @@ def _render_value(value, display_settings, kind=None, zero_tolerance=None):
     )
 
 
+def _is_linreg_expression(expression, value):
+    if not isinstance(value, list) or len(value) != 2:
+        return False
+    normalized = expression.strip()
+    if "=" in normalized:
+        normalized = normalized.split("=", 1)[1].strip()
+    return normalized.startswith("linreg(")
+
+
+def _render_list_lines(value, display_settings, zero_tolerance):
+    inline_items = [
+        _render_value(item, display_settings, None, zero_tolerance)
+        for item in value
+    ]
+    inline = f"list[{len(value)}] [{', '.join(inline_items)}]"
+    if len(value) <= 4 and len(inline) <= 72 and all(not isinstance(item, list) for item in value):
+        return [inline]
+
+    lines = [f"list[{len(value)}]"]
+    for index, item in enumerate(value):
+        item_lines = _render_value_lines(item, display_settings, None, zero_tolerance)
+        lines.append(f"  [{index}] {item_lines[0]}")
+        for continuation in item_lines[1:]:
+            lines.append(f"      {continuation}")
+    return lines
+
+
+def _render_value_lines(value, display_settings, kind=None, zero_tolerance=None, expression=None):
+    tolerance = zero_tolerance if zero_tolerance is not None else 0.0
+
+    if _is_linreg_expression(expression or "", value):
+        slope = _render_value(value[0], display_settings, None, tolerance)
+        intercept = _render_value(value[1], display_settings, None, tolerance)
+        return [f"linreg[slope={slope}, intercept={intercept}]"]
+
+    if isinstance(value, list):
+        return _render_list_lines(value, display_settings, tolerance)
+
+    return [_render_value(value, display_settings, kind, tolerance)]
+
+
 def _print_variables(context, display_settings):
     variables = context.user_variables()
     if not variables:
         print("No user variables.")
         return
     for name in sorted(variables):
-        print(
-            f"{name} = {_render_value(variables[name], display_settings, context.get_variable_kind(name), context.zero_tolerance)}"
+        rendered_lines = _render_value_lines(
+            variables[name],
+            display_settings,
+            context.get_variable_kind(name),
+            context.zero_tolerance,
         )
+        print(f"{name} = {rendered_lines[0]}")
+        for continuation in rendered_lines[1:]:
+            print(f"  {continuation}")
 
 
 def _print_functions(context):
@@ -204,10 +251,19 @@ def _history_lines(context, display_settings, query=None):
         if not entries:
             return [f"No history entries matching '{query}'."]
 
-    return [
-        f"{index}: {entry['expression']} = {_render_value(entry['result'], display_settings, entry.get('kind'), context.zero_tolerance)}"
-        for index, entry in entries
-    ]
+    lines = []
+    for index, entry in entries:
+        rendered_lines = _render_value_lines(
+            entry["result"],
+            display_settings,
+            entry.get("kind"),
+            context.zero_tolerance,
+            entry["expression"],
+        )
+        lines.append(f"{index}: {entry['expression']} = {rendered_lines[0]}")
+        for continuation in rendered_lines[1:]:
+            lines.append(f"   {continuation}")
+    return lines
 
 
 def _history_replay_entry(context, token):
@@ -722,7 +778,14 @@ def run_repl(session_store=None):
                             print(f"Error: {error}")
                             continue
                         _mark_session_dirty(session_state)
-                        print(_render_value(result, display_settings, context.entries[-1].get("kind"), context.zero_tolerance))
+                        for rendered_line in _render_value_lines(
+                            result,
+                            display_settings,
+                            context.entries[-1].get("kind"),
+                            context.zero_tolerance,
+                            entry["expression"],
+                        ):
+                            print(rendered_line)
                         continue
 
                     _print_history(context, display_settings, " ".join(parts[1:]))
@@ -841,4 +904,11 @@ def run_repl(session_store=None):
             continue
 
         _mark_session_dirty(session_state)
-        print(_render_value(result, display_settings, context.entries[-1].get("kind"), context.zero_tolerance))
+        for rendered_line in _render_value_lines(
+            result,
+            display_settings,
+            context.entries[-1].get("kind"),
+            context.zero_tolerance,
+            line,
+        ):
+            print(rendered_line)

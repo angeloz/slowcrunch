@@ -392,6 +392,30 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertEqual(lines[0], "1: radius = 5 = 5.0")
         self.assertEqual(lines[1], "2: area(r) = pi * r ^ 2 = Defined area(r)")
 
+    def test_history_lines_render_short_list_with_summary(self):
+        context = EvaluationContext()
+        context.record_entry("values", [1.0, 2.0, 3.0])
+        lines = _history_lines(context, DisplaySettings())
+        self.assertEqual(lines, ["1: values = list[3] [1.0, 2.0, 3.0]"])
+
+    def test_history_lines_render_long_list_multiline(self):
+        context = EvaluationContext()
+        context.record_entry("values", [1.0, 2.0, 3.0, 4.0, 5.0])
+        lines = _history_lines(context, DisplaySettings())
+        self.assertEqual(lines[0], "1: values = list[5]")
+        self.assertEqual(lines[1], "     [0] 1.0")
+        self.assertEqual(lines[2], "     [1] 2.0")
+        self.assertEqual(lines[5], "     [4] 5.0")
+
+    def test_history_lines_render_linreg_result_with_labels(self):
+        context = EvaluationContext()
+        context.record_entry("linreg([1, 2, 3], [2, 4, 6])", [2.0, 0.0])
+        lines = _history_lines(context, DisplaySettings())
+        self.assertEqual(
+            lines,
+            ["1: linreg([1, 2, 3], [2, 4, 6]) = linreg[slope=2.0, intercept=0.0]"],
+        )
+
     def test_history_lines_filter_entries(self):
         context = EvaluationContext()
         context.record_entry("radius = 5", 5.0)
