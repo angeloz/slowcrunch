@@ -1,3 +1,4 @@
+from difflib import get_close_matches
 from dataclasses import dataclass, field
 
 from slowcrunch.core.errors import EvaluationError
@@ -16,11 +17,17 @@ class EvaluationContext:
 
     def get_variable(self, name):
         if name not in self.variables:
+            suggestion = self._suggest_name(name, self.variables)
+            if suggestion:
+                raise EvaluationError(f"Unknown variable: {name}. Did you mean '{suggestion}'?")
             raise EvaluationError(f"Unknown variable: {name}")
         return self.variables[name]
 
     def get_function(self, name):
         if name not in self.functions:
+            suggestion = self._suggest_name(name, self.functions)
+            if suggestion:
+                raise EvaluationError(f"Unknown function: {name}. Did you mean '{suggestion}'?")
             raise EvaluationError(f"Unknown function: {name}")
         return self.functions[name]
 
@@ -42,3 +49,15 @@ class EvaluationContext:
             for name, value in self.variables.items()
             if name not in self.protected_variables
         }
+
+    def variable_names(self):
+        return sorted(self.variables)
+
+    def function_names(self):
+        return sorted(self.functions)
+
+    def _suggest_name(self, name, pool):
+        matches = get_close_matches(name, pool, n=1, cutoff=0.5)
+        if matches:
+            return matches[0]
+        return None

@@ -10,8 +10,7 @@ class Parser:
     def parse(self):
         expression = self.parse_statement()
         if self.current().kind != "EOF":
-            token = self.current()
-            raise ParseError(f"Unexpected token '{token.value}' at position {token.position}.")
+            raise ParseError(self._format_unexpected_token(self.current()))
         return expression
 
     def parse_statement(self):
@@ -95,4 +94,9 @@ class Parser:
                 raise ParseError("Missing closing parenthesis.")
             return node
 
-        raise ParseError(f"Unexpected token '{token.value}' at position {token.position}.")
+        raise ParseError(self._format_unexpected_token(token))
+
+    def _format_unexpected_token(self, token):
+        if token.kind == "EOF":
+            return "Unexpected end of expression."
+        return f"Unexpected token '{token.value}' at position {token.position}."

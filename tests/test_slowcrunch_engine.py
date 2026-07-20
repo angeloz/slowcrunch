@@ -63,12 +63,25 @@ class SlowCrunchEngineTest(unittest.TestCase):
             evaluate_expression("5 / 0")
 
     def test_unknown_function(self):
-        with self.assertRaises(EvaluationError):
-            evaluate_expression("foo(1)")
+        with self.assertRaises(EvaluationError) as context:
+            evaluate_expression("sqt(9)")
+        self.assertEqual(
+            str(context.exception),
+            "Unknown function: sqt. Did you mean 'sqrt'?",
+        )
+
+    def test_unknown_variable_suggestion(self):
+        with self.assertRaises(EvaluationError) as context:
+            evaluate_expression("pn + 1")
+        self.assertEqual(
+            str(context.exception),
+            "Unknown variable: pn. Did you mean 'pi'?",
+        )
 
     def test_invalid_syntax(self):
-        with self.assertRaises(ParseError):
+        with self.assertRaises(ParseError) as context:
             evaluate_expression("1 +")
+        self.assertEqual(str(context.exception), "Unexpected end of expression.")
 
 
 if __name__ == "__main__":
