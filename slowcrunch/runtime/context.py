@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 
 from slowcrunch.core.errors import EvaluationError
 from slowcrunch.runtime.builtins import build_builtin_functions, build_builtin_variables
-from slowcrunch.runtime.numbers import DEFAULT_SESSION_ZERO_TOLERANCE
+from slowcrunch.runtime.numbers import DEFAULT_SESSION_ZERO_TOLERANCE, is_numeric
 from slowcrunch.runtime.user_functions import UserFunction
 
 
@@ -81,7 +81,8 @@ class EvaluationContext:
             self.variable_kinds.pop("ans", None)
         else:
             self.variable_kinds["ans"] = kind
-        self.history.append(value)
+        if is_numeric(value):
+            self.history.append(value)
 
     def set_zero_tolerance(self, value):
         tolerance = float(value)

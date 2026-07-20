@@ -10,8 +10,10 @@ from slowcrunch.tui.repl import (
     _help_lines,
     _history_lines,
     _history_replay_entry,
+    _list_slice_lines,
     _requires_continuation,
     _status_lines,
+    _variable_value_lines,
 )
 
 
@@ -45,7 +47,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
     def test_command_completion_filters_repl_commands(self):
         context = EvaluationContext()
         matches = _completion_candidates(context, ":h", ":h", 0)
-        self.assertEqual(matches, [":help", ":history"])
+        self.assertEqual(matches, [":head", ":help", ":history"])
 
     def test_angles_command_is_completable(self):
         context = EvaluationContext()
@@ -76,6 +78,21 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         context = EvaluationContext()
         matches = _completion_candidates(context, ":f", ":f", 0)
         self.assertEqual(matches, [":format", ":functions"])
+
+    def test_head_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":hea", ":hea", 0)
+        self.assertEqual(matches, [":head"])
+
+    def test_show_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":sho", ":sho", 0)
+        self.assertEqual(matches, [":show"])
+
+    def test_tail_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":ta", ":ta", 0)
+        self.assertEqual(matches, [":tail"])
 
     def test_new_command_is_completable(self):
         context = EvaluationContext()
@@ -132,7 +149,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
     def test_help_command_is_completable(self):
         context = EvaluationContext()
         matches = _completion_candidates(context, ":he", ":he", 0)
-        self.assertEqual(matches, [":help"])
+        self.assertEqual(matches, [":head", ":help"])
 
     def test_help_topic_is_completable(self):
         context = EvaluationContext()
@@ -178,6 +195,24 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         )
         self.assertEqual(matches, ["demo"])
 
+    def test_show_variable_name_is_completable(self):
+        context = EvaluationContext()
+        context.set_variable("values", [1.0, 2.0, 3.0])
+        matches = _completion_candidates(context, "va", ":show va", 6)
+        self.assertEqual(matches, ["values"])
+
+    def test_head_variable_name_is_completable(self):
+        context = EvaluationContext()
+        context.set_variable("values", [1.0, 2.0, 3.0])
+        matches = _completion_candidates(context, "va", ":head va", 6)
+        self.assertEqual(matches, ["values"])
+
+    def test_tail_variable_name_is_completable(self):
+        context = EvaluationContext()
+        context.set_variable("values", [1.0, 2.0, 3.0])
+        matches = _completion_candidates(context, "va", ":tail va", 6)
+        self.assertEqual(matches, ["values"])
+
     def test_user_defined_function_is_completable(self):
         context = EvaluationContext()
         context.set_function("area", ["radius"], None)
@@ -189,16 +224,20 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         lines = _help_lines()
         self.assertIn(":angles [MODE] Show or change the angle output mode.", lines)
         self.assertIn(":format [MODE] Show or change the numeric output mode.", lines)
+        self.assertIn(":head NAME [COUNT] Show the first items of a list variable.", lines)
         self.assertIn(":tolerance [VALUE] Show or change the zero tolerance.", lines)
         self.assertIn(":history [text|!index] Show, filter, or replay history.", lines)
+        self.assertIn(":show NAME Show a variable or structured result with TUI formatting.", lines)
+        self.assertIn(":tail NAME [COUNT] Show the last items of a list variable.", lines)
         self.assertIn(
-            "Help topics: angles, basics, clear, delete, format, functions, history, new, reset, sessions, status, tolerance, vars",
+            "Help topics: angles, basics, clear, delete, format, functions, head, history, new, reset, sessions, show, status, tail, tolerance, vars",
             lines,
         )
         self.assertIn("  :help angles", lines)
         self.assertIn("  :help delete", lines)
         self.assertIn("  :help format", lines)
         self.assertIn("  :help functions", lines)
+        self.assertIn("  :help show", lines)
         self.assertIn("  :help sessions", lines)
         self.assertIn("  :help status", lines)
         self.assertIn("  :help tolerance", lines)
@@ -305,6 +344,21 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn("Use :history !index to replay a previous entry.", lines)
         self.assertIn("  :history !3", lines)
 
+    def test_show_help_explains_structured_rendering(self):
+        lines = _help_lines("show")
+        self.assertIn("Use :show name to render a variable with the same structured formatting used by the REPL.", lines)
+        self.assertIn("  :show ans", lines)
+
+    def test_head_help_explains_default_count(self):
+        lines = _help_lines("head")
+        self.assertIn("If count is omitted, the default is 5.", lines)
+        self.assertIn("  :head values 3", lines)
+
+    def test_tail_help_explains_default_count(self):
+        lines = _help_lines("tail")
+        self.assertIn("If count is omitted, the default is 5.", lines)
+        self.assertIn("  :tail values 3", lines)
+
     def test_status_help_mentions_dirty_state(self):
         lines = _help_lines("status")
         self.assertIn("The status includes the active session name, last save time, dirty state, numeric format mode, angle mode, zero tolerance, and object counts.", lines)
@@ -347,7 +401,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertEqual(lines[0], "Unknown help topic 'unknown'.")
         self.assertEqual(
             lines[1],
-            "Available topics: angles, basics, clear, delete, format, functions, history, new, reset, sessions, status, tolerance, vars",
+            "Available topics: angles, basics, clear, delete, format, functions, head, history, new, reset, sessions, show, status, tail, tolerance, vars",
         )
 
     def test_sessions_help_explains_save_and_load(self):
@@ -415,6 +469,50 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
             lines,
             ["1: linreg([1, 2, 3], [2, 4, 6]) = linreg[slope=2.0, intercept=0.0]"],
         )
+
+    def test_variable_value_lines_render_list_with_label_ready_output(self):
+        context = EvaluationContext()
+        context.set_variable("values", [1.0, 2.0, 3.0, 4.0, 5.0])
+        lines = _variable_value_lines(context, DisplaySettings(), "values")
+        self.assertEqual(lines[0], "list[5]")
+        self.assertEqual(lines[1], "  [0] 1.0")
+
+    def test_variable_value_lines_render_ans_linreg_result(self):
+        context = EvaluationContext()
+        context.variables["ans"] = [2.0, 0.0]
+        lines = _variable_value_lines(
+            context,
+            DisplaySettings(),
+            "ans",
+            "linreg([1, 2, 3], [2, 4, 6])",
+        )
+        self.assertEqual(lines, ["linreg[slope=2.0, intercept=0.0]"])
+
+    def test_variable_value_lines_render_ans_linreg_result_from_last_history_entry(self):
+        context = EvaluationContext()
+        context.record_entry("linreg([1, 2, 3], [2, 4, 6])", [2.0, 0.0])
+        context.variables["ans"] = [2.0, 0.0]
+        lines = _variable_value_lines(context, DisplaySettings(), "ans")
+        self.assertEqual(lines, ["linreg[slope=2.0, intercept=0.0]"])
+
+    def test_list_slice_lines_render_head_subset(self):
+        context = EvaluationContext()
+        context.set_variable("values", [1.0, 2.0, 3.0, 4.0, 5.0])
+        lines = _list_slice_lines(context, DisplaySettings(), "values", 3)
+        self.assertEqual(lines, ["list[3] [1.0, 2.0, 3.0]"])
+
+    def test_list_slice_lines_render_tail_subset(self):
+        context = EvaluationContext()
+        context.set_variable("values", [1.0, 2.0, 3.0, 4.0, 5.0])
+        lines = _list_slice_lines(context, DisplaySettings(), "values", 2, from_tail=True)
+        self.assertEqual(lines, ["list[2] [4.0, 5.0]"])
+
+    def test_list_slice_lines_reject_non_list_variable(self):
+        context = EvaluationContext()
+        context.set_variable("radius", 5.0)
+        with self.assertRaises(SessionError) as error:
+            _list_slice_lines(context, DisplaySettings(), "radius", 2)
+        self.assertEqual(str(error.exception), "Variable 'radius' is not a list.")
 
     def test_history_lines_filter_entries(self):
         context = EvaluationContext()

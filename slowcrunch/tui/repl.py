@@ -19,6 +19,7 @@ REPL_COMMANDS = (
     ":delete",
     ":format",
     ":functions",
+    ":head",
     ":help",
     ":history",
     ":load",
@@ -28,12 +29,14 @@ REPL_COMMANDS = (
     ":save",
     ":saveas",
     ":sessions",
+    ":show",
     ":status",
+    ":tail",
     ":tolerance",
     ":vars",
 )
 REPL_KEYWORDS = ("exit", "quit")
-HELP_TOPICS = ("angles", "basics", "clear", "delete", "format", "functions", "history", "new", "reset", "sessions", "status", "tolerance", "vars")
+HELP_TOPICS = ("angles", "basics", "clear", "delete", "format", "functions", "head", "history", "new", "reset", "sessions", "show", "status", "tail", "tolerance", "vars")
 DELETE_TARGETS = ("function", "session", "var")
 
 
@@ -59,6 +62,8 @@ def _completion_candidates(context, text, line_buffer="", begidx=0, session_name
         pool = ANGLE_FORMAT_MODES
     elif stripped_buffer.startswith(":format ") and not text.startswith(":"):
         pool = FORMAT_MODES
+    elif _command_expects_variable_name(stripped_buffer, text):
+        pool = context.variable_names()
     elif stripped_buffer.startswith(":delete ") and not text.startswith(":"):
         pool = _delete_completion_pool(context, stripped_buffer, session_names)
     elif stripped_buffer.startswith(":load ") and not text.startswith(":"):
@@ -71,6 +76,18 @@ def _completion_candidates(context, text, line_buffer="", begidx=0, session_name
         pool = tuple(sorted(set(function_candidates + variable_candidates + list(REPL_KEYWORDS))))
 
     return [candidate for candidate in pool if candidate.startswith(text)]
+
+
+def _command_expects_variable_name(line_buffer, text):
+    if text.startswith(":"):
+        return False
+
+    prefixes = (":show ", ":head ", ":tail ")
+    if not any(line_buffer.startswith(prefix) for prefix in prefixes):
+        return False
+
+    tokens = line_buffer.split()
+    return len(tokens) <= 2
 
 
 def _delete_completion_pool(context, line_buffer, session_names):
@@ -189,6 +206,62 @@ def _print_variables(context, display_settings):
             print(f"  {continuation}")
 
 
+def _variable_value_lines(context, display_settings, name, expression=None):
+    try:
+        value = context.get_variable(name)
+    except SlowCrunchError as error:
+        raise SessionError(str(error)) from error
+
+    resolved_expression = expression
+    if resolved_expression is None and name == "ans" and context.entries:
+        resolved_expression = context.entries[-1]["expression"]
+
+    return _render_value_lines(
+        value,
+        display_settings,
+        context.get_variable_kind(name),
+        context.zero_tolerance,
+        resolved_expression or name,
+    )
+
+
+def _parse_count_argument(value):
+    try:
+        count = int(value)
+    except ValueError as error:
+        raise SessionError("Count must be a non-negative integer.") from error
+    if count < 0:
+        raise SessionError("Count must be a non-negative integer.")
+    return count
+
+
+def _list_slice_lines(context, display_settings, name, count, from_tail=False):
+    try:
+        value = context.get_variable(name)
+    except SlowCrunchError as error:
+        raise SessionError(str(error)) from error
+
+    if not isinstance(value, list):
+        raise SessionError(f"Variable '{name}' is not a list.")
+
+    sliced = value[-count:] if from_tail and count else value[:count]
+    label = "tail" if from_tail else "head"
+    expression = f"{label}({name}, {count})"
+    return _render_value_lines(
+        sliced,
+        display_settings,
+        None,
+        context.zero_tolerance,
+        expression,
+    )
+
+
+def _print_named_value(label, rendered_lines):
+    print(f"{label} = {rendered_lines[0]}")
+    for continuation in rendered_lines[1:]:
+        print(f"  {continuation}")
+
+
 def _print_functions(context):
     functions = context.user_functions()
     if not functions:
@@ -290,6 +363,7 @@ def _help_lines(topic=None):
             ":delete   Delete a variable, function, or saved session.",
             ":format [MODE] Show or change the numeric output mode.",
             ":functions Show user-defined functions.",
+            ":head NAME [COUNT] Show the first items of a list variable.",
             ":help [topic] Show general help or help for a topic.",
             ":history [text|!index] Show, filter, or replay history.",
             ":load NAME Load a saved session.",
@@ -299,17 +373,20 @@ def _help_lines(topic=None):
             ":save [NAME] Save the current session.",
             ":saveas NAME Save the current session under a new name.",
             ":sessions List saved sessions.",
+            ":show NAME Show a variable or structured result with TUI formatting.",
             ":status   Show the current session state.",
+            ":tail NAME [COUNT] Show the last items of a list variable.",
             ":tolerance [VALUE] Show or change the zero tolerance.",
             ":vars    Show user-defined variables.",
             "quit     Exit the application.",
             "exit     Exit the application.",
-            "Help topics: angles, basics, clear, delete, format, functions, history, new, reset, sessions, status, tolerance, vars",
+            "Help topics: angles, basics, clear, delete, format, functions, head, history, new, reset, sessions, show, status, tail, tolerance, vars",
             "Examples:",
             "  :help angles",
             "  :help delete",
             "  :help format",
             "  :help functions",
+            "  :help show",
             "  :help status",
             "  :help sessions",
             "  :help tolerance",
@@ -469,13 +546,43 @@ def _help_lines(topic=None):
             "Use :history text to filter entries by expression or rendered result.",
             "Use :history !index to replay a previous entry.",
             "The history includes assignments and function definitions.",
-            "Use ans to reuse the last numeric result.",
+            "Use ans to reuse the last evaluated value.",
             "Examples:",
             "  10 / 2",
             "  ans + 3",
             "  :history",
             "  :history area",
             "  :history !3",
+        ]
+
+    if topic == "show":
+        return [
+            "Help: show",
+            "Use :show name to render a variable with the same structured formatting used by the REPL.",
+            "This is useful for long lists and structured results stored in variables such as ans.",
+            "Examples:",
+            "  :show values",
+            "  :show ans",
+        ]
+
+    if topic == "head":
+        return [
+            "Help: head",
+            "Use :head name [count] to show the first items of a list variable.",
+            "If count is omitted, the default is 5.",
+            "Examples:",
+            "  :head values",
+            "  :head values 3",
+        ]
+
+    if topic == "tail":
+        return [
+            "Help: tail",
+            "Use :tail name [count] to show the last items of a list variable.",
+            "If count is omitted, the default is 5.",
+            "Examples:",
+            "  :tail values",
+            "  :tail values 3",
         ]
 
     if topic == "new":
@@ -516,6 +623,7 @@ def _help_lines(topic=None):
             "Assign user variables with the form name = expression.",
             "Use :vars to list user-defined variables.",
             "Protected names such as ans, pi, e, and i cannot be reassigned.",
+            "Use ans to reuse the last evaluated value.",
             "Examples:",
             "  radius = 5",
             "  z = 2 + 3i",
@@ -571,7 +679,7 @@ def _help_lines(topic=None):
 
     return [
         f"Unknown help topic '{topic}'.",
-        "Available topics: angles, basics, clear, delete, format, functions, history, new, reset, sessions, status, tolerance, vars",
+        "Available topics: angles, basics, clear, delete, format, functions, head, history, new, reset, sessions, show, status, tail, tolerance, vars",
     ]
 
 
@@ -671,8 +779,8 @@ def run_repl(session_store=None):
     print("slowcrunch")
     print("Type an expression or 'quit' to exit.")
     print(
-        "Commands: :angles, :clear, :delete, :format, :functions, :help, :history, :load, "
-        ":new, :rename-session, :reset, :save, :saveas, :sessions, :status, :tolerance, :vars"
+        "Commands: :angles, :clear, :delete, :format, :functions, :head, :help, :history, :load, "
+        ":new, :rename-session, :reset, :save, :saveas, :sessions, :show, :status, :tail, :tolerance, :vars"
     )
 
     while True:
@@ -706,6 +814,26 @@ def run_repl(session_store=None):
 
                 if command == ":functions":
                     _print_functions(context)
+                    continue
+
+                if command == ":show":
+                    if len(parts) != 2:
+                        raise SessionError("Usage: :show name")
+                    _print_named_value(parts[1], _variable_value_lines(context, display_settings, parts[1]))
+                    continue
+
+                if command == ":head":
+                    if len(parts) not in {2, 3}:
+                        raise SessionError("Usage: :head name [count]")
+                    count = _parse_count_argument(parts[2]) if len(parts) == 3 else 5
+                    _print_named_value(parts[1], _list_slice_lines(context, display_settings, parts[1], count))
+                    continue
+
+                if command == ":tail":
+                    if len(parts) not in {2, 3}:
+                        raise SessionError("Usage: :tail name [count]")
+                    count = _parse_count_argument(parts[2]) if len(parts) == 3 else 5
+                    _print_named_value(parts[1], _list_slice_lines(context, display_settings, parts[1], count, from_tail=True))
                     continue
 
                 if command == ":angles":

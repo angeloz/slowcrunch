@@ -108,6 +108,19 @@ Commands: :angles, :clear, :delete, :format, :functions, :help, :history, :load,
 1.0
 >> linreg([1, 2, 3], [2, 4, 6])
 linreg[slope=2.0, intercept=0.0]
+>> :show ans
+ans = linreg[slope=2.0, intercept=0.0]
+>> values = [1, 2, 3, 4, 5]
+list[5]
+  [0] 1.0
+  [1] 2.0
+  [2] 3.0
+  [3] 4.0
+  [4] 5.0
+>> :head values 3
+values = list[3] [1.0, 2.0, 3.0]
+>> :tail values 2
+values = list[2] [4.0, 5.0]
 >> fact(5)
 120.0
 >> perm(5, 2)
@@ -262,6 +275,9 @@ Use these commands to manage the current interactive session:
 ```text
 :clear
 :new
+:show ans
+:head values 3
+:tail values 3
 :status
 :tolerance
 :tolerance 1e-12

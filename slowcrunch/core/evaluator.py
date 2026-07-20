@@ -36,7 +36,7 @@ class Evaluator:
             result = EvaluatedValue(None)
             for statement in node.statements:
                 result = self.evaluate_with_kind(statement)
-                if is_numeric(result.value):
+                if result.value is not None and not isinstance(result.value, str):
                     self.context.set_ans(result.value, result.kind)
             return result
 
