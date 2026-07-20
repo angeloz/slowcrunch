@@ -21,7 +21,9 @@ The project currently provides a small REPL-based TUI with:
 - built-in constants: `pi`, `e`
 - `ans` for the last result
 - user variable assignment such as `x = 2 * 5`
-- `:history` and `:vars` commands
+- user-defined functions such as `area(r) = pi * r ^ 2`
+- `:functions`, `:history`, `:help`, and `:vars` commands
+- topic help such as `:help functions` and `:help vars`
 - keyboard history support through `readline` when available
 
 This is an early foundation, not yet a full SpeedCrunch-compatible clone.
@@ -56,19 +58,31 @@ python3 -m unittest discover -v
 $ python3 -m slowcrunch
 slowcrunch
 Type an expression or 'quit' to exit.
-Commands: :history, :vars
+Commands: :functions, :help, :history, :vars
 >> 2 + 3 * 4
 14.0
 >> radius = 5
 5.0
+>> area(r) = pi * r ^ 2
+Defined area(r)
+>> area(radius)
+78.53981633974483
 >> pi * radius ^ 2
 78.53981633974483
 >> :vars
 radius = 5.0
+>> :functions
+area(r)
+>> :help functions
+Help: functions
+Built-in functions include abs, sin, cos, tan, sqrt, and log.
+Define user functions with the form name(param1, param2) = expression.
 >> :history
 1: 2 + 3 * 4 = 14.0
 2: radius = 5 = 5.0
-3: pi * radius ^ 2 = 78.53981633974483
+3: area(r) = pi * r ^ 2 = Defined area(r)
+4: area(radius) = 78.53981633974483
+5: pi * radius ^ 2 = 78.53981633974483
 ```
 
 ## Design Direction

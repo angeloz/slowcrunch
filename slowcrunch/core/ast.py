@@ -34,3 +34,10 @@ class CallNode:
 class AssignNode:
     name: str
     value: object
+
+
+@dataclass(frozen=True)
+class FunctionDefNode:
+    name: str
+    parameters: list
+    body: object

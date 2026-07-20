@@ -1,4 +1,12 @@
-from slowcrunch.core.ast import AssignNode, BinaryOpNode, CallNode, NameNode, NumberNode, UnaryOpNode
+from slowcrunch.core.ast import (
+    AssignNode,
+    BinaryOpNode,
+    CallNode,
+    FunctionDefNode,
+    NameNode,
+    NumberNode,
+    UnaryOpNode,
+)
 from slowcrunch.core.errors import ParseError
 
 
@@ -14,11 +22,30 @@ class Parser:
         return expression
 
     def parse_statement(self):
+        if self._is_function_definition():
+            return self.parse_function_definition()
         if self.current().kind == "IDENT" and self.peek().kind == "ASSIGN":
             name = self.advance().value
             self.advance()
             return AssignNode(name, self.parse_expression())
         return self.parse_expression()
+
+    def parse_function_definition(self):
+        name = self.advance().value
+        self.advance()
+        parameters = []
+        if self.current().kind != "RPAREN":
+            while True:
+                if self.current().kind != "IDENT":
+                    raise ParseError("Expected a parameter name in function definition.")
+                parameters.append(self.advance().value)
+                if not self.match("COMMA"):
+                    break
+        if not self.match("RPAREN"):
+            raise ParseError("Missing closing parenthesis in function definition.")
+        if not self.match("ASSIGN"):
+            raise ParseError("Expected '=' after function definition.")
+        return FunctionDefNode(name, parameters, self.parse_expression())
 
     def current(self):
         return self.tokens[self.index]
@@ -100,3 +127,27 @@ class Parser:
         if token.kind == "EOF":
             return "Unexpected end of expression."
         return f"Unexpected token '{token.value}' at position {token.position}."
+
+    def _is_function_definition(self):
+        if self.current().kind != "IDENT" or self.peek().kind != "LPAREN":
+            return False
+
+        scan_index = self.index + 2
+        token = self.tokens[scan_index]
+        expect_parameter = token.kind != "RPAREN"
+
+        while token.kind != "EOF":
+            if token.kind == "RPAREN":
+                return self.tokens[scan_index + 1].kind == "ASSIGN"
+            if expect_parameter:
+                if token.kind != "IDENT":
+                    return False
+                expect_parameter = False
+            else:
+                if token.kind != "COMMA":
+                    return False
+                expect_parameter = True
+            scan_index += 1
+            token = self.tokens[scan_index]
+
+        return False

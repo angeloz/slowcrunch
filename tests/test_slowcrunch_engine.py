@@ -62,6 +62,48 @@ class SlowCrunchEngineTest(unittest.TestCase):
         with self.assertRaises(EvaluationError):
             evaluate_expression("5 / 0")
 
+    def test_user_function_definition_and_call(self):
+        context = EvaluationContext()
+        result, context = evaluate_expression("square(x) = x ^ 2", context)
+        called, context = evaluate_expression("square(4)", context)
+        self.assertEqual(result, "Defined square(x)")
+        self.assertEqual(called, 16.0)
+        self.assertEqual(context.history, [16.0])
+        self.assertEqual(context.user_functions()["square"].signature(), "square(x)")
+
+    def test_user_function_can_use_global_variables(self):
+        context = EvaluationContext()
+        _, context = evaluate_expression("scale = 3", context)
+        _, context = evaluate_expression("scale_by(x) = x * scale", context)
+        result, context = evaluate_expression("scale_by(5)", context)
+        self.assertEqual(result, 15.0)
+
+    def test_user_function_argument_count_validation(self):
+        context = EvaluationContext()
+        _, context = evaluate_expression("inc(x) = x + 1", context)
+        with self.assertRaises(EvaluationError) as context_manager:
+            evaluate_expression("inc(1, 2)", context)
+        self.assertEqual(
+            str(context_manager.exception),
+            "Function 'inc' expects 1 argument(s), got 2.",
+        )
+
+    def test_builtin_function_cannot_be_redefined(self):
+        with self.assertRaises(EvaluationError) as context:
+            evaluate_expression("sin(x) = x")
+        self.assertEqual(
+            str(context.exception),
+            "Protected function cannot be redefined: sin",
+        )
+
+    def test_duplicate_function_parameters_are_rejected(self):
+        with self.assertRaises(EvaluationError) as context:
+            evaluate_expression("pair(x, x) = x")
+        self.assertEqual(
+            str(context.exception),
+            "Duplicate parameter in function definition: x",
+        )
+
     def test_unknown_function(self):
         with self.assertRaises(EvaluationError) as context:
             evaluate_expression("sqt(9)")

@@ -1,12 +1,22 @@
 import math
 
-from slowcrunch.core.ast import AssignNode, BinaryOpNode, CallNode, NameNode, NumberNode, UnaryOpNode
+from slowcrunch.core.ast import (
+    AssignNode,
+    BinaryOpNode,
+    CallNode,
+    FunctionDefNode,
+    NameNode,
+    NumberNode,
+    UnaryOpNode,
+)
 from slowcrunch.core.errors import EvaluationError
+from slowcrunch.runtime.user_functions import UserFunction
 
 
 class Evaluator:
-    def __init__(self, context):
+    def __init__(self, context, local_variables=None):
         self.context = context
+        self.local_variables = local_variables or {}
 
     def evaluate(self, node):
         if isinstance(node, AssignNode):
@@ -14,10 +24,16 @@ class Evaluator:
             self.context.set_variable(node.name, value)
             return value
 
+        if isinstance(node, FunctionDefNode):
+            self.context.set_function(node.name, node.parameters, node.body)
+            return f"Defined {node.name}({', '.join(node.parameters)})"
+
         if isinstance(node, NumberNode):
             return node.value
 
         if isinstance(node, NameNode):
+            if node.name in self.local_variables:
+                return self.local_variables[node.name]
             return self.context.get_variable(node.name)
 
         if isinstance(node, UnaryOpNode):
@@ -36,14 +52,27 @@ class Evaluator:
         if isinstance(node, CallNode):
             function = self.context.get_function(node.name)
             arguments = [self.evaluate(argument) for argument in node.arguments]
-            try:
-                return function(*arguments)
-            except TypeError as error:
-                raise EvaluationError(f"Invalid arguments for function '{node.name}'.") from error
-            except ValueError as error:
-                raise EvaluationError(str(error)) from error
+            return self.call_function(function, arguments)
 
         raise EvaluationError(f"Unsupported node: {type(node).__name__}")
+
+    def call_function(self, function, arguments):
+        if isinstance(function, UserFunction):
+            expected = len(function.parameters)
+            received = len(arguments)
+            if received != expected:
+                raise EvaluationError(
+                    f"Function '{function.name}' expects {expected} argument(s), got {received}."
+                )
+            local_variables = dict(zip(function.parameters, arguments))
+            return Evaluator(self.context, local_variables).evaluate(function.body)
+
+        try:
+            return function(*arguments)
+        except TypeError as error:
+            raise EvaluationError("Invalid arguments for function call.") from error
+        except ValueError as error:
+            raise EvaluationError(str(error)) from error
 
     def apply_binary_operator(self, operator, left, right):
         if operator == "+":

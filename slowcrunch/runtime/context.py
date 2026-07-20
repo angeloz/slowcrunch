@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 
 from slowcrunch.core.errors import EvaluationError
 from slowcrunch.runtime.builtins import build_builtin_functions, build_builtin_variables
+from slowcrunch.runtime.user_functions import UserFunction
 
 
 @dataclass
@@ -14,6 +15,7 @@ class EvaluationContext:
 
     def __post_init__(self):
         self.protected_variables = {"ans", "e", "pi"}
+        self.protected_functions = set(self.functions)
 
     def get_variable(self, name):
         if name not in self.variables:
@@ -36,6 +38,18 @@ class EvaluationContext:
             raise EvaluationError(f"Protected variable cannot be assigned: {name}")
         self.variables[name] = value
 
+    def set_function(self, name, parameters, body):
+        if name in self.protected_functions:
+            raise EvaluationError(f"Protected function cannot be redefined: {name}")
+        if len(parameters) != len(set(parameters)):
+            duplicate = next(
+                parameter
+                for index, parameter in enumerate(parameters)
+                if parameter in parameters[:index]
+            )
+            raise EvaluationError(f"Duplicate parameter in function definition: {duplicate}")
+        self.functions[name] = UserFunction(name, tuple(parameters), body)
+
     def set_ans(self, value):
         self.variables["ans"] = value
         self.history.append(value)
@@ -55,6 +69,13 @@ class EvaluationContext:
 
     def function_names(self):
         return sorted(self.functions)
+
+    def user_functions(self):
+        return {
+            name: function
+            for name, function in self.functions.items()
+            if name not in self.protected_functions
+        }
 
     def _suggest_name(self, name, pool):
         matches = get_close_matches(name, pool, n=1, cutoff=0.5)
