@@ -17,14 +17,17 @@ The project currently provides a small REPL-based TUI with:
 - operator precedence and parentheses
 - unary `+` and `-`
 - exponentiation with `^`
+- scientific notation such as `1.2e6`
+- SI-prefix literals such as `10k`, `1M`, `220u`, `3f`, and `2a`
 - built-in functions: `abs`, `sin`, `cos`, `tan`, `sqrt`, `log`, `re`, `im`, `conj`, `arg`
 - built-in constants: `pi`, `e`, `i`
 - `ans` for the last result
 - complex numbers such as `2 + 3i` and `sqrt(-1)`
 - user variable assignment such as `x = 2 * 5`
 - user-defined functions such as `area(r) = pi * r ^ 2`
-- `:clear`, `:delete`, `:functions`, `:history`, `:help`, `:load`, `:new`, `:rename-session`, `:reset`, `:save`, `:saveas`, `:sessions`, `:status`, and `:vars` commands
+- `:clear`, `:delete`, `:format`, `:functions`, `:history`, `:help`, `:load`, `:new`, `:rename-session`, `:reset`, `:save`, `:saveas`, `:sessions`, `:status`, and `:vars` commands
 - history filtering with `:history text` and history replay with `:history !index`
+- output modes: `plain`, `scientific`, `engineering`, and `si`
 - topic help such as `:help functions` and `:help vars`
 - named or timestamped session save/load
 - multi-statement programs separated by newline or `;`
@@ -62,9 +65,13 @@ python3 -m unittest discover -v
 $ python3 -m slowcrunch
 slowcrunch
 Type an expression or 'quit' to exit.
-Commands: :clear, :delete, :functions, :help, :history, :load, :new, :rename-session, :reset, :save, :saveas, :sessions, :status, :vars
+Commands: :clear, :delete, :format, :functions, :help, :history, :load, :new, :rename-session, :reset, :save, :saveas, :sessions, :status, :vars
 >> 2 + 3 * 4
 14.0
+>> 10k + 25
+10025.0
+>> 3f * 2
+6.0000000000000005e-15
 >> radius = 5
 5.0
 >> area(r) = pi * r ^ 2
@@ -89,6 +96,16 @@ i
 2.0 - 3.0i
 >> arg(i)
 1.5707963267948966
+>> :format si
+Output format set to si.
+>> 10000
+10k
+>> 0.001
+1m
+>> :format engineering
+Output format set to engineering.
+>> 12000
+12e3
 >> :history area
 3: area(r) = pi * r ^ 2 = Defined area(r)
 4: area(radius) = 78.53981633974483
@@ -101,10 +118,11 @@ Saved session 'demo' at 2026-07-20T12:34:56+02:00
 Session: demo
 Saved at: 2026-07-20T12:34:56+02:00
 Modified: no
+Format: engineering
 User variables: 1
 User functions: 1
-History entries: 5
-Numeric results: 3
+History entries: 8
+Numeric results: 6
 >> :sessions
 demo  2026-07-20T12:34:56+02:00
 >> :load demo
@@ -197,6 +215,40 @@ Use `:history` to inspect or reuse previous entries:
 `:history` lists recorded expressions and their rendered results.  
 `:history text` filters by expression or rendered result.  
 `:history !index` replays the selected entry in the current session.
+
+## Numeric Input And Output
+
+slowcrunch accepts multiple numeric entry styles:
+
+- plain decimals such as `12.5`
+- scientific notation such as `1.2e6` or `4.7e-3`
+- SI prefixes such as `10k`, `1M`, `220u`, `3f`, `2a`, `5T`, `1P`
+
+SI prefixes are interpreted immediately as numeric values. For example:
+
+```text
+10k   = 10000
+1M    = 1000000
+1m    = 0.001
+220u  = 0.00022
+3f    = 0.000000000000003
+2a    = 0.000000000000000002
+```
+
+Use `:format` to control numeric output rendering:
+
+```text
+:format
+:format plain
+:format scientific
+:format engineering
+:format si
+```
+
+`plain` keeps the default decimal rendering.  
+`scientific` uses `mantissa e exponent`, such as `1.2e6`.  
+`engineering` keeps exponents in steps of three, such as `12e3`.  
+`si` uses engineering steps with SI prefixes, such as `12k` or `220u`.
 
 ## Multi-Statement Input
 

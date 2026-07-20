@@ -9,12 +9,13 @@ except ImportError:  # pragma: no cover
 from slowcrunch.core.errors import IncompleteInputError, SessionError, SlowCrunchError
 from slowcrunch.engine import evaluate_expression, parse_input
 from slowcrunch.runtime.context import EvaluationContext
-from slowcrunch.runtime.numbers import format_value
+from slowcrunch.runtime.numbers import FORMAT_MODES, format_value
 from slowcrunch.runtime.session_store import SessionStore
 
 REPL_COMMANDS = (
     ":clear",
     ":delete",
+    ":format",
     ":functions",
     ":help",
     ":history",
@@ -29,7 +30,7 @@ REPL_COMMANDS = (
     ":vars",
 )
 REPL_KEYWORDS = ("exit", "quit")
-HELP_TOPICS = ("basics", "clear", "delete", "functions", "history", "new", "reset", "sessions", "status", "vars")
+HELP_TOPICS = ("basics", "clear", "delete", "format", "functions", "history", "new", "reset", "sessions", "status", "vars")
 DELETE_TARGETS = ("function", "session", "var")
 
 
@@ -40,11 +41,18 @@ class SessionState:
     dirty: bool = False
 
 
+@dataclass
+class DisplaySettings:
+    format_mode: str = "plain"
+
+
 def _completion_candidates(context, text, line_buffer="", begidx=0, session_names=None):
     stripped_buffer = line_buffer.lstrip()
 
     if stripped_buffer.startswith(":help ") and not text.startswith(":"):
         pool = HELP_TOPICS
+    elif stripped_buffer.startswith(":format ") and not text.startswith(":"):
+        pool = FORMAT_MODES
     elif stripped_buffer.startswith(":delete ") and not text.startswith(":"):
         pool = _delete_completion_pool(context, stripped_buffer, session_names)
     elif stripped_buffer.startswith(":load ") and not text.startswith(":"):
@@ -102,18 +110,18 @@ def _configure_readline(context, session_store):
     readline.parse_and_bind('"\\e[B": next-history')
 
 
-def _print_history(context, query=None):
-    for line in _history_lines(context, query):
+def _print_history(context, display_settings, query=None):
+    for line in _history_lines(context, display_settings, query):
         print(line)
 
 
-def _print_variables(context):
+def _print_variables(context, display_settings):
     variables = context.user_variables()
     if not variables:
         print("No user variables.")
         return
     for name in sorted(variables):
-        print(f"{name} = {format_value(variables[name])}")
+        print(f"{name} = {format_value(variables[name], display_settings.format_mode)}")
 
 
 def _print_functions(context):
@@ -134,7 +142,7 @@ def _print_sessions(session_store):
         print(f"{session.name}  {session.saved_at}")
 
 
-def _status_lines(context, session_state):
+def _status_lines(context, session_state, display_settings):
     session_name = session_state.current_name or "<unsaved>"
     saved_at = session_state.last_saved_at or "never"
     modified = "yes" if session_state.dirty else "no"
@@ -142,6 +150,7 @@ def _status_lines(context, session_state):
         f"Session: {session_name}",
         f"Saved at: {saved_at}",
         f"Modified: {modified}",
+        f"Format: {display_settings.format_mode}",
         f"User variables: {len(context.user_variables())}",
         f"User functions: {len(context.user_functions())}",
         f"History entries: {len(context.entries)}",
@@ -149,12 +158,12 @@ def _status_lines(context, session_state):
     ]
 
 
-def _print_status(context, session_state):
-    for line in _status_lines(context, session_state):
+def _print_status(context, session_state, display_settings):
+    for line in _status_lines(context, session_state, display_settings):
         print(line)
 
 
-def _history_lines(context, query=None):
+def _history_lines(context, display_settings, query=None):
     if not context.entries:
         return ["No history yet."]
 
@@ -165,12 +174,15 @@ def _history_lines(context, query=None):
             (index, entry)
             for index, entry in entries
             if lowered_query in entry["expression"].lower()
-            or lowered_query in format_value(entry["result"]).lower()
+            or lowered_query in format_value(entry["result"], display_settings.format_mode).lower()
         ]
         if not entries:
             return [f"No history entries matching '{query}'."]
 
-    return [f"{index}: {entry['expression']} = {format_value(entry['result'])}" for index, entry in entries]
+    return [
+        f"{index}: {entry['expression']} = {format_value(entry['result'], display_settings.format_mode)}"
+        for index, entry in entries
+    ]
 
 
 def _history_replay_entry(context, token):
@@ -194,6 +206,7 @@ def _help_lines(topic=None):
             "Available commands:",
             ":clear    Clear the screen.",
             ":delete   Delete a variable, function, or saved session.",
+            ":format [MODE] Show or change the numeric output mode.",
             ":functions Show user-defined functions.",
             ":help [topic] Show general help or help for a topic.",
             ":history [text|!index] Show, filter, or replay history.",
@@ -208,15 +221,17 @@ def _help_lines(topic=None):
             ":vars    Show user-defined variables.",
             "quit     Exit the application.",
             "exit     Exit the application.",
-            "Help topics: basics, clear, delete, functions, history, new, reset, sessions, status, vars",
+            "Help topics: basics, clear, delete, format, functions, history, new, reset, sessions, status, vars",
             "Examples:",
             "  :help delete",
+            "  :help format",
             "  :help functions",
             "  :help status",
             "  :help sessions",
             "  :help vars",
             "  2 + 3 * 4",
             "  radius = 5",
+            "  10k",
             "  area(r) = pi * r ^ 2",
         ]
 
@@ -225,6 +240,8 @@ def _help_lines(topic=None):
             "Help: basics",
             "Enter expressions directly at the prompt.",
             "Supported operators: +, -, *, /, ^",
+            "Numbers can use scientific notation such as 1.2e6.",
+            "Numbers can use SI prefixes such as 10k, 1M, 220u, or 3f.",
             "Use parentheses to group sub-expressions.",
             "Use a trailing ';' to continue a multi-statement program on the next line.",
             "The continuation prompt is '.. ' while additional input is expected.",
@@ -233,11 +250,29 @@ def _help_lines(topic=None):
             "Examples:",
             "  2 + 3 * 4",
             "  2 + 3i",
+            "  10k + 25",
+            "  1.2e6",
             "  radius = 5;",
             "  .. area(r) = pi * r ^ 2;",
             "  .. area(radius)",
             "  (1 + 2) * 3",
             "  sqrt(-1)",
+        ]
+
+    if topic == "format":
+        return [
+            "Help: format",
+            "Use :format to inspect or change the numeric output mode.",
+            "Available modes: plain, scientific, engineering, si.",
+            "Plain keeps the default Python-like decimal rendering.",
+            "Scientific uses mantissa and exponent, such as 1.2e6.",
+            "Engineering keeps exponents in steps of three, such as 12e3.",
+            "SI uses engineering steps with SI prefixes, such as 12k or 220u.",
+            "Examples:",
+            "  :format",
+            "  :format scientific",
+            "  :format engineering",
+            "  :format si",
         ]
 
     if topic == "functions":
@@ -325,6 +360,7 @@ def _help_lines(topic=None):
             "Examples:",
             "  radius = 5",
             "  z = 2 + 3i",
+            "  current = 4.7m",
             "  mass = 12 / 3",
             "  pi * radius ^ 2",
             "  :vars",
@@ -354,7 +390,7 @@ def _help_lines(topic=None):
         return [
             "Help: status",
             "Use :status to inspect the current session.",
-            "The status includes the active session name, last save time, dirty state, and object counts.",
+            "The status includes the active session name, last save time, dirty state, format mode, and object counts.",
             "Examples:",
             "  :status",
             "  :save demo",
@@ -363,7 +399,7 @@ def _help_lines(topic=None):
 
     return [
         f"Unknown help topic '{topic}'.",
-        "Available topics: basics, clear, delete, functions, history, new, reset, sessions, status, vars",
+        "Available topics: basics, clear, delete, format, functions, history, new, reset, sessions, status, vars",
     ]
 
 
@@ -456,13 +492,14 @@ def _read_statement():
 def run_repl(session_store=None):
     context = EvaluationContext()
     session_state = SessionState()
+    display_settings = DisplaySettings()
     session_store = session_store or SessionStore()
     _configure_readline(context, session_store)
 
     print("slowcrunch")
     print("Type an expression or 'quit' to exit.")
     print(
-        "Commands: :clear, :delete, :functions, :help, :history, :load, "
+        "Commands: :clear, :delete, :format, :functions, :help, :history, :load, "
         ":new, :rename-session, :reset, :save, :saveas, :sessions, :status, :vars"
     )
 
@@ -499,10 +536,23 @@ def run_repl(session_store=None):
                     _print_functions(context)
                     continue
 
+                if command == ":format":
+                    if len(parts) > 2:
+                        raise SessionError("Usage: :format [plain|scientific|engineering|si]")
+                    if len(parts) == 1:
+                        print(f"Output format: {display_settings.format_mode}")
+                        continue
+                    mode = parts[1].lower()
+                    if mode not in FORMAT_MODES:
+                        raise SessionError("Usage: :format [plain|scientific|engineering|si]")
+                    display_settings.format_mode = mode
+                    print(f"Output format set to {mode}.")
+                    continue
+
                 if command == ":status":
                     if len(parts) != 1:
                         raise SessionError("Usage: :status")
-                    _print_status(context, session_state)
+                    _print_status(context, session_state, display_settings)
                     continue
 
                 if command == ":clear":
@@ -513,7 +563,7 @@ def run_repl(session_store=None):
 
                 if command == ":history":
                     if len(parts) == 1:
-                        _print_history(context)
+                        _print_history(context, display_settings)
                         continue
 
                     if parts[1].startswith("!"):
@@ -528,14 +578,14 @@ def run_repl(session_store=None):
                             print(f"Error: {error}")
                             continue
                         _mark_session_dirty(session_state)
-                        print(format_value(result))
+                        print(format_value(result, display_settings.format_mode))
                         continue
 
-                    _print_history(context, " ".join(parts[1:]))
+                    _print_history(context, display_settings, " ".join(parts[1:]))
                     continue
 
                 if command == ":vars":
-                    _print_variables(context)
+                    _print_variables(context, display_settings)
                     continue
 
                 if command == ":sessions":
@@ -647,4 +697,4 @@ def run_repl(session_store=None):
             continue
 
         _mark_session_dirty(session_state)
-        print(format_value(result))
+        print(format_value(result, display_settings.format_mode))

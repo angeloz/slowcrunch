@@ -27,6 +27,22 @@ class SlowCrunchEngineTest(unittest.TestCase):
         result, _ = evaluate_expression("sqrt(9) + sin(0)")
         self.assertEqual(result, 3.0)
 
+    def test_scientific_notation_literal(self):
+        result, _ = evaluate_expression("1.2e6 + 3")
+        self.assertEqual(result, 1200003.0)
+
+    def test_si_prefix_literal(self):
+        result, _ = evaluate_expression("10k + 25")
+        self.assertEqual(result, 10025.0)
+
+    def test_small_si_prefix_literal(self):
+        result, _ = evaluate_expression("4.7m * 2")
+        self.assertTrue(math.isclose(result, 0.0094))
+
+    def test_extended_si_prefix_literal(self):
+        result, _ = evaluate_expression("3f * 2")
+        self.assertTrue(math.isclose(result, 6e-15))
+
     def test_imaginary_unit_variable(self):
         result, _ = evaluate_expression("i ^ 2")
         self.assertEqual(result, -1.0)
@@ -34,6 +50,10 @@ class SlowCrunchEngineTest(unittest.TestCase):
     def test_imaginary_number_literal(self):
         result, _ = evaluate_expression("2 + 3i")
         self.assertEqual(result, complex(2.0, 3.0))
+
+    def test_imaginary_number_with_si_prefix_literal(self):
+        result, _ = evaluate_expression("2ui")
+        self.assertEqual(result, 2e-6j)
 
     def test_complex_expression(self):
         result, _ = evaluate_expression("(2 + 3i) * (1 - i)")

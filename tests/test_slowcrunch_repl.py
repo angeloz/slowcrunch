@@ -3,6 +3,7 @@ import unittest
 from slowcrunch.core.errors import SessionError
 from slowcrunch.runtime.context import EvaluationContext
 from slowcrunch.tui.repl import (
+    DisplaySettings,
     SessionState,
     _completion_candidates,
     _ensure_clean_session,
@@ -46,10 +47,20 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         matches = _completion_candidates(context, ":h", ":h", 0)
         self.assertEqual(matches, [":help", ":history"])
 
+    def test_format_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":fo", ":fo", 0)
+        self.assertEqual(matches, [":format"])
+
+    def test_format_mode_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, "sc", ":format sc", 8)
+        self.assertEqual(matches, ["scientific"])
+
     def test_functions_command_is_completable(self):
         context = EvaluationContext()
         matches = _completion_candidates(context, ":f", ":f", 0)
-        self.assertEqual(matches, [":functions"])
+        self.assertEqual(matches, [":format", ":functions"])
 
     def test_new_command_is_completable(self):
         context = EvaluationContext()
@@ -161,12 +172,14 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
     def test_general_help_mentions_help_topics(self):
         lines = _help_lines()
+        self.assertIn(":format [MODE] Show or change the numeric output mode.", lines)
         self.assertIn(":history [text|!index] Show, filter, or replay history.", lines)
         self.assertIn(
-            "Help topics: basics, clear, delete, functions, history, new, reset, sessions, status, vars",
+            "Help topics: basics, clear, delete, format, functions, history, new, reset, sessions, status, vars",
             lines,
         )
         self.assertIn("  :help delete", lines)
+        self.assertIn("  :help format", lines)
         self.assertIn("  :help functions", lines)
         self.assertIn("  :help sessions", lines)
         self.assertIn("  :help status", lines)
@@ -190,6 +203,12 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn("Built-in helpers for complex values include re, im, conj, and arg.", lines)
         self.assertIn("  :functions", lines)
 
+    def test_format_help_explains_available_modes(self):
+        lines = _help_lines("format")
+        self.assertIn("Available modes: plain, scientific, engineering, si.", lines)
+        self.assertIn("SI uses engineering steps with SI prefixes, such as 12k or 220u.", lines)
+        self.assertIn("  :format si", lines)
+
     def test_reset_help_explains_in_memory_reset(self):
         lines = _help_lines("reset")
         self.assertIn("Use :reset to clear the current in-memory session.", lines)
@@ -209,7 +228,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
     def test_status_help_mentions_dirty_state(self):
         lines = _help_lines("status")
-        self.assertIn("The status includes the active session name, last save time, dirty state, and object counts.", lines)
+        self.assertIn("The status includes the active session name, last save time, dirty state, format mode, and object counts.", lines)
 
     def test_vars_help_explains_assignment_syntax(self):
         lines = _help_lines("vars")
@@ -220,7 +239,10 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
     def test_basics_help_mentions_imaginary_unit(self):
         lines = _help_lines("basics")
         self.assertIn("Built-in constants include pi, e, and i.", lines)
+        self.assertIn("Numbers can use scientific notation such as 1.2e6.", lines)
+        self.assertIn("Numbers can use SI prefixes such as 10k, 1M, 220u, or 3f.", lines)
         self.assertIn("  2 + 3i", lines)
+        self.assertIn("  10k + 25", lines)
         self.assertIn("  sqrt(-1)", lines)
 
     def test_unknown_help_topic_lists_available_topics(self):
@@ -228,7 +250,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertEqual(lines[0], "Unknown help topic 'unknown'.")
         self.assertEqual(
             lines[1],
-            "Available topics: basics, clear, delete, functions, history, new, reset, sessions, status, vars",
+            "Available topics: basics, clear, delete, format, functions, history, new, reset, sessions, status, vars",
         )
 
     def test_sessions_help_explains_save_and_load(self):
@@ -241,28 +263,30 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
     def test_status_lines_for_unsaved_session(self):
         context = EvaluationContext()
-        lines = _status_lines(context, SessionState())
+        lines = _status_lines(context, SessionState(), DisplaySettings())
         self.assertEqual(lines[0], "Session: <unsaved>")
         self.assertEqual(lines[1], "Saved at: never")
         self.assertEqual(lines[2], "Modified: no")
+        self.assertEqual(lines[3], "Format: plain")
 
     def test_status_lines_for_saved_dirty_session(self):
         context = EvaluationContext()
         context.set_variable("radius", 5.0)
         context.set_function("area", ["r"], None)
         state = SessionState("demo", "2026-07-20T13:00:00+02:00", True)
-        lines = _status_lines(context, state)
+        lines = _status_lines(context, state, DisplaySettings("si"))
         self.assertEqual(lines[0], "Session: demo")
         self.assertEqual(lines[1], "Saved at: 2026-07-20T13:00:00+02:00")
         self.assertEqual(lines[2], "Modified: yes")
-        self.assertEqual(lines[3], "User variables: 1")
-        self.assertEqual(lines[4], "User functions: 1")
+        self.assertEqual(lines[3], "Format: si")
+        self.assertEqual(lines[4], "User variables: 1")
+        self.assertEqual(lines[5], "User functions: 1")
 
     def test_history_lines_show_all_entries(self):
         context = EvaluationContext()
         context.record_entry("radius = 5", 5.0)
         context.record_entry("area(r) = pi * r ^ 2", "Defined area(r)")
-        lines = _history_lines(context)
+        lines = _history_lines(context, DisplaySettings())
         self.assertEqual(lines[0], "1: radius = 5 = 5.0")
         self.assertEqual(lines[1], "2: area(r) = pi * r ^ 2 = Defined area(r)")
 
@@ -270,32 +294,38 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         context = EvaluationContext()
         context.record_entry("radius = 5", 5.0)
         context.record_entry("area(r) = pi * r ^ 2", "Defined area(r)")
-        lines = _history_lines(context, "area")
+        lines = _history_lines(context, DisplaySettings(), "area")
         self.assertEqual(lines, ["2: area(r) = pi * r ^ 2 = Defined area(r)"])
 
     def test_history_lines_format_complex_values(self):
         context = EvaluationContext()
         context.record_entry("sqrt(-1)", 1j)
-        lines = _history_lines(context)
+        lines = _history_lines(context, DisplaySettings())
         self.assertEqual(lines, ["1: sqrt(-1) = i"])
 
     def test_history_lines_format_negative_imaginary_values(self):
         context = EvaluationContext()
         context.record_entry("conj(i)", -1j)
-        lines = _history_lines(context)
+        lines = _history_lines(context, DisplaySettings())
         self.assertEqual(lines, ["1: conj(i) = -i"])
 
     def test_history_lines_filter_complex_values_by_rendered_form(self):
         context = EvaluationContext()
         context.record_entry("sqrt(-1)", 1j)
-        lines = _history_lines(context, "i")
+        lines = _history_lines(context, DisplaySettings(), "i")
         self.assertEqual(lines, ["1: sqrt(-1) = i"])
 
     def test_history_lines_report_missing_filter_match(self):
         context = EvaluationContext()
         context.record_entry("radius = 5", 5.0)
-        lines = _history_lines(context, "mass")
+        lines = _history_lines(context, DisplaySettings(), "mass")
         self.assertEqual(lines, ["No history entries matching 'mass'."])
+
+    def test_history_lines_use_active_format_mode(self):
+        context = EvaluationContext()
+        context.record_entry("10000", 10000.0)
+        lines = _history_lines(context, DisplaySettings("si"))
+        self.assertEqual(lines, ["1: 10000 = 10k"])
 
     def test_history_replay_entry_returns_indexed_entry(self):
         context = EvaluationContext()

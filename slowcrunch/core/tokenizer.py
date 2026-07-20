@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from slowcrunch.core.errors import TokenizeError
+from slowcrunch.runtime.numbers import SI_INPUT_PREFIXES, parse_number_literal
 
 
 @dataclass(frozen=True)
@@ -52,16 +53,38 @@ def tokenize(text):
                 if text[index] == ".":
                     dot_count += 1
                 index += 1
-            value = text[start:index]
-            if dot_count > 1 or value == ".":
+            if dot_count > 1 or text[start:index] == ".":
                 raise TokenizeError(f"Invalid number at position {start}.")
+
+            if index < len(text) and text[index] in {"e", "E"}:
+                exponent_index = index + 1
+                if exponent_index < len(text) and text[exponent_index] in {"+", "-"}:
+                    exponent_index += 1
+                exponent_start = exponent_index
+                while exponent_index < len(text) and text[exponent_index].isdigit():
+                    exponent_index += 1
+                if exponent_index == exponent_start:
+                    raise TokenizeError(f"Invalid scientific notation at position {start}.")
+                index = exponent_index
+
+            suffix = ""
+            if index < len(text) and text[index] in SI_INPUT_PREFIXES:
+                next_index = index + 1
+                if next_index == len(text) or text[next_index] == "i" or not (
+                    text[next_index].isalnum() or text[next_index] == "_"
+                ):
+                    suffix = text[index]
+                    index += 1
+
+            is_imaginary = False
             if index < len(text) and text[index] == "i":
                 next_index = index + 1
                 if next_index == len(text) or not (text[next_index].isalnum() or text[next_index] == "_"):
-                    tokens.append(Token("IMAG_NUMBER", value, start))
+                    is_imaginary = True
                     index += 1
-                    continue
-            tokens.append(Token("NUMBER", value, start))
+
+            value = parse_number_literal(text[start:index - 1] if is_imaginary else text[start:index])
+            tokens.append(Token("IMAG_NUMBER" if is_imaginary else "NUMBER", str(value), start))
             continue
 
         if char.isalpha() or char == "_":

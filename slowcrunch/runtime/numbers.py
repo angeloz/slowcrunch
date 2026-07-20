@@ -1,5 +1,35 @@
+import math
+
 NUMERIC_TYPES = (int, float, complex)
-ZERO_TOLERANCE = 1e-12
+ZERO_TOLERANCE = 1e-30
+FORMAT_MODES = ("plain", "scientific", "engineering", "si")
+
+SI_PREFIXES = {
+    -30: "q",
+    -27: "r",
+    -24: "y",
+    -21: "z",
+    -18: "a",
+    -15: "f",
+    -12: "p",
+    -9: "n",
+    -6: "u",
+    -3: "m",
+    0: "",
+    3: "k",
+    6: "M",
+    9: "G",
+    12: "T",
+    15: "P",
+    18: "E",
+    21: "Z",
+    24: "Y",
+    27: "R",
+    30: "Q",
+}
+
+SI_INPUT_PREFIXES = {prefix: 10.0**exponent for exponent, prefix in SI_PREFIXES.items() if prefix}
+SI_INPUT_PREFIXES["K"] = 1e3
 
 
 def is_numeric(value):
@@ -23,27 +53,80 @@ def normalize_number(value):
     return normalized
 
 
-def format_value(value):
+def parse_number_literal(text):
+    suffix = text[-1] if text and text[-1] in SI_INPUT_PREFIXES else ""
+    numeric_text = text[:-1] if suffix else text
+    value = float(numeric_text)
+    multiplier = SI_INPUT_PREFIXES.get(suffix, 1.0)
+    return normalize_number(value * multiplier)
+
+
+def format_value(value, mode="plain"):
+    if mode not in FORMAT_MODES:
+        raise ValueError(f"Unknown format mode: {mode}")
+
     normalized = normalize_number(value)
     if isinstance(normalized, complex):
-        return _format_complex(normalized)
-    return str(normalized)
+        return _format_complex(normalized, mode)
+    return _format_real(normalized, mode)
 
 
-def _format_complex(value):
+def _format_complex(value, mode):
     real = normalize_number(value.real)
     imag = normalize_number(value.imag)
 
     if real == 0.0:
-        return _format_imaginary(imag)
+        return _format_imaginary(imag, mode)
 
     sign = "+" if imag > 0 else "-"
-    return f"{real} {sign} {_format_imaginary(abs(imag))}"
+    return f"{_format_real(real, mode)} {sign} {_format_imaginary(abs(imag), mode)}"
 
 
-def _format_imaginary(value):
+def _format_imaginary(value, mode):
     if value == 1.0:
         return "i"
     if value == -1.0:
         return "-i"
-    return f"{value}i"
+    return f"{_format_real(value, mode)}i"
+
+
+def _format_real(value, mode):
+    if mode == "plain":
+        return str(value)
+    if value == 0.0:
+        return "0"
+    if mode == "scientific":
+        return _format_scientific(value)
+    if mode == "engineering":
+        return _format_engineering(value)
+    if mode == "si":
+        return _format_si(value)
+    raise ValueError(f"Unknown format mode: {mode}")
+
+
+def _format_scientific(value):
+    mantissa, exponent = f"{value:.12e}".split("e")
+    return f"{_compact_decimal(mantissa)}e{int(exponent)}"
+
+
+def _format_engineering(value):
+    exponent = _engineering_exponent(value)
+    mantissa = normalize_number(value / (10.0**exponent))
+    return f"{_compact_decimal(mantissa)}e{exponent}"
+
+
+def _format_si(value):
+    exponent = _engineering_exponent(value)
+    prefix = SI_PREFIXES.get(exponent)
+    if prefix is None:
+        return _format_engineering(value)
+    mantissa = normalize_number(value / (10.0**exponent))
+    return f"{_compact_decimal(mantissa)}{prefix}"
+
+
+def _engineering_exponent(value):
+    return int(math.floor(math.log10(abs(value)) / 3.0) * 3)
+
+
+def _compact_decimal(value):
+    return f"{float(value):.12g}"
