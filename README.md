@@ -1,17 +1,28 @@
 # slowcrunch
 
-`slowcrunch` is a lightweight scientific calculator for the terminal, inspired by the SpeedCrunch workflow and user experience.
+`slowcrunch` is a scientific calculator for the terminal, inspired by the SpeedCrunch workflow and user experience.
 
-The project is intentionally being built in small steps:
+It is being built with three priorities in mind:
 
-- compact code
-- minimal dependencies
-- explicit parsing and evaluation
-- modular architecture for future growth
+- a fast, terminal-first user experience
+- a compact, standard-library-first codebase
+- a modular architecture that can grow without turning into a monolith
 
-## Current Status
+slowcrunch is already useful as a daily calculator, but it is still an evolving project rather than a finished SpeedCrunch-compatible clone.
 
-The project currently provides a small REPL-based TUI with:
+## Highlights
+
+- terminal REPL with multi-line input, history replay, and structured result rendering
+- scientific, engineering, and SI-prefix output modes
+- explicit support for angles, durations, complex numbers, and list values
+- built-in functions for trigonometry, logarithms, statistics, combinatorics, and formatting
+- user variables, user-defined functions, and reusable sessions
+- standalone variable import and export in JSON and CSV
+- explicit parsing and evaluation without `eval()`
+
+## Features
+
+slowcrunch currently provides:
 
 - arithmetic expressions
 - operator precedence and parentheses
@@ -29,7 +40,7 @@ The project currently provides a small REPL-based TUI with:
 - complex numbers such as `2 + 3i` and `sqrt(-1)`
 - user variable assignment such as `x = 2 * 5`
 - user-defined functions such as `area(r) = pi * r ^ 2`
-- `:angles`, `:clear`, `:delete`, `:format`, `:functions`, `:help`, `:history`, `:import-vars`, `:load`, `:load-vars`, `:new`, `:rename-session`, `:reset`, `:save`, `:save-vars`, `:saveas`, `:sessions`, `:status`, `:tolerance`, and `:vars` commands
+- `:angles`, `:clear`, `:delete`, `:format`, `:functions`, `:head`, `:help`, `:history`, `:import-vars`, `:load`, `:load-vars`, `:new`, `:rename-session`, `:reset`, `:save`, `:save-vars`, `:saveas`, `:sessions`, `:show`, `:status`, `:tail`, `:tolerance`, and `:vars` commands
 - history filtering with `:history text` and history replay with `:history !index`
 - output modes: `plain`, `scientific`, `engineering`, and `si`
 - topic help such as `:help functions` and `:help vars`
@@ -38,8 +49,6 @@ The project currently provides a small REPL-based TUI with:
 - multi-statement programs separated by newline or `;`
 - keyboard history support through `readline` when available
 
-This is an early foundation, not yet a full SpeedCrunch-compatible clone.
-
 ## Project Layout
 
 ```text
@@ -47,10 +56,12 @@ slowcrunch/
   core/       tokenizer, parser, AST, evaluator, errors
   runtime/    built-ins and evaluation context
   tui/        terminal REPL
+scripts/      helper scripts such as demo recording
+demos/        asciinema recordings and related assets
 tests/        automated tests for the engine
 ```
 
-## Run
+## Quick Start
 
 Launch the TUI:
 
@@ -63,6 +74,22 @@ Run the test suite:
 ```bash
 python3 -m unittest discover -v
 ```
+
+## Demo
+
+An asciinema demo is included in the repository:
+
+```bash
+asciinema play demos/slowcrunch-demo.cast
+```
+
+The demo was recorded from a real `slowcrunch` session and showcases:
+
+- numeric format switching
+- angle output modes
+- list inspection
+- statistics and linear regression
+- structured rendering with `:show ans`
 
 ## Example Session
 
@@ -250,15 +277,16 @@ No history yet.
 
 Near-term priorities:
 
-- better interactive input experience
-- autocompletion for variables and functions
-- improved error messages
-- user-defined functions
+- broader scientific function coverage and compatibility improvements
+- richer TUI interaction and result browsing
+- import/export for more user-defined state such as functions
+- more polished documentation and onboarding
 
 Longer-term goals:
 
-- scientific constants expansion
-- a richer terminal experience closer to SpeedCrunch
+- deeper SpeedCrunch-inspired workflow support
+- scientific constants and advanced unit-oriented features
+- a more capable terminal experience without losing code clarity
 
 ## Session Storage
 
