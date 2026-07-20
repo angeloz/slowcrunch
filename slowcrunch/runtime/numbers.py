@@ -44,4 +44,6 @@ def _format_complex(value):
 def _format_imaginary(value):
     if value == 1.0:
         return "i"
+    if value == -1.0:
+        return "-i"
     return f"{value}i"

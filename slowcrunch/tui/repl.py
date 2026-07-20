@@ -243,8 +243,9 @@ def _help_lines(topic=None):
     if topic == "functions":
         return [
             "Help: functions",
-            "Built-in functions include abs, sin, cos, tan, sqrt, and log.",
+            "Built-in functions include abs, sin, cos, tan, sqrt, log, re, im, conj, and arg.",
             "These functions also accept complex arguments.",
+            "Built-in helpers for complex values include re, im, conj, and arg.",
             "Define user functions with the form name(param1, param2) = expression.",
             "Function parameters are local to the function body.",
             "User-defined functions can reference global variables.",
@@ -252,6 +253,8 @@ def _help_lines(topic=None):
             "  square(x) = x ^ 2",
             "  area(r) = pi * r ^ 2",
             "  sqrt(-1)",
+            "  conj(2 + 3i)",
+            "  arg(i)",
             "  area(5)",
             "  :functions",
         ]

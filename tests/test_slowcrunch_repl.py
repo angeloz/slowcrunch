@@ -24,7 +24,8 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         context = EvaluationContext()
         context.set_variable("radius", 5.0)
         matches = _completion_candidates(context, "r")
-        self.assertEqual(matches, ["radius"])
+        self.assertIn("radius", matches)
+        self.assertIn("re(", matches)
 
     def test_expression_completion_includes_keywords(self):
         context = EvaluationContext()
@@ -155,7 +156,8 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         context = EvaluationContext()
         context.set_function("area", ["radius"], None)
         matches = _completion_candidates(context, "ar")
-        self.assertEqual(matches, ["area("])
+        self.assertIn("area(", matches)
+        self.assertIn("arg(", matches)
 
     def test_general_help_mentions_help_topics(self):
         lines = _help_lines()
@@ -185,6 +187,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
             "Define user functions with the form name(param1, param2) = expression.",
             lines,
         )
+        self.assertIn("Built-in helpers for complex values include re, im, conj, and arg.", lines)
         self.assertIn("  :functions", lines)
 
     def test_reset_help_explains_in_memory_reset(self):
@@ -275,6 +278,12 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         context.record_entry("sqrt(-1)", 1j)
         lines = _history_lines(context)
         self.assertEqual(lines, ["1: sqrt(-1) = i"])
+
+    def test_history_lines_format_negative_imaginary_values(self):
+        context = EvaluationContext()
+        context.record_entry("conj(i)", -1j)
+        lines = _history_lines(context)
+        self.assertEqual(lines, ["1: conj(i) = -i"])
 
     def test_history_lines_filter_complex_values_by_rendered_form(self):
         context = EvaluationContext()

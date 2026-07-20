@@ -17,7 +17,7 @@ The project currently provides a small REPL-based TUI with:
 - operator precedence and parentheses
 - unary `+` and `-`
 - exponentiation with `^`
-- built-in functions: `abs`, `sin`, `cos`, `tan`, `sqrt`, `log`
+- built-in functions: `abs`, `sin`, `cos`, `tan`, `sqrt`, `log`, `re`, `im`, `conj`, `arg`
 - built-in constants: `pi`, `e`, `i`
 - `ans` for the last result
 - complex numbers such as `2 + 3i` and `sqrt(-1)`
@@ -85,6 +85,10 @@ Define user functions with the form name(param1, param2) = expression.
 i
 >> (2 + 3i) * (1 - i)
 5.0 + i
+>> conj(2 + 3i)
+2.0 - 3.0i
+>> arg(i)
+1.5707963267948966
 >> :history area
 3: area(r) = pi * r ^ 2 = Defined area(r)
 4: area(radius) = 78.53981633974483

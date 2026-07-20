@@ -43,6 +43,22 @@ class SlowCrunchEngineTest(unittest.TestCase):
         result, _ = evaluate_expression("sqrt(-1)")
         self.assertEqual(result, 1j)
 
+    def test_real_part_function(self):
+        result, _ = evaluate_expression("re(2 + 3i)")
+        self.assertEqual(result, 2.0)
+
+    def test_imaginary_part_function(self):
+        result, _ = evaluate_expression("im(2 + 3i)")
+        self.assertEqual(result, 3.0)
+
+    def test_complex_conjugate_function(self):
+        result, _ = evaluate_expression("conj(2 + 3i)")
+        self.assertEqual(result, complex(2.0, -3.0))
+
+    def test_complex_argument_function(self):
+        result, _ = evaluate_expression("arg(i)")
+        self.assertTrue(math.isclose(result, math.pi / 2))
+
     def test_ans_is_reused(self):
         context = EvaluationContext()
         first, context = evaluate_expression("10 / 2", context)
