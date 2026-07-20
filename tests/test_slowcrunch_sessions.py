@@ -57,6 +57,21 @@ class SlowCrunchSessionStoreTest(unittest.TestCase):
                 store.load("missing")
             self.assertEqual(str(context.exception), "Unknown session: missing")
 
+    def test_delete_saved_session_removes_it(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            _, context = evaluate_expression("2 + 2")
+            store.save(context, "demo")
+            store.delete("demo")
+            self.assertEqual(store.session_names(), [])
+
+    def test_delete_unknown_session_raises_error(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            with self.assertRaises(SessionError) as context:
+                store.delete("missing")
+            self.assertEqual(str(context.exception), "Unknown session: missing")
+
     def test_invalid_session_name_is_rejected(self):
         with tempfile.TemporaryDirectory() as tempdir:
             store = SessionStore(tempdir)

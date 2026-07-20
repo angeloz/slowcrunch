@@ -38,6 +38,13 @@ class EvaluationContext:
             raise EvaluationError(f"Protected variable cannot be assigned: {name}")
         self.variables[name] = value
 
+    def delete_variable(self, name):
+        if name in self.protected_variables:
+            raise EvaluationError(f"Protected variable cannot be deleted: {name}")
+        if name not in self.variables:
+            raise EvaluationError(f"Unknown variable: {name}")
+        del self.variables[name]
+
     def set_function(self, name, parameters, body):
         if name in self.protected_functions:
             raise EvaluationError(f"Protected function cannot be redefined: {name}")
@@ -49,6 +56,13 @@ class EvaluationContext:
             )
             raise EvaluationError(f"Duplicate parameter in function definition: {duplicate}")
         self.functions[name] = UserFunction(name, tuple(parameters), body)
+
+    def delete_function(self, name):
+        if name in self.protected_functions:
+            raise EvaluationError(f"Protected function cannot be deleted: {name}")
+        if name not in self.functions:
+            raise EvaluationError(f"Unknown function: {name}")
+        del self.functions[name]
 
     def set_ans(self, value):
         self.variables["ans"] = value
@@ -77,8 +91,16 @@ class EvaluationContext:
             if name not in self.protected_functions
         }
 
+    def reset_user_state(self):
+        self.variables = build_builtin_variables()
+        self.functions = build_builtin_functions()
+        self.history = []
+        self.entries = []
+        self.protected_functions = set(self.functions)
+
     def _suggest_name(self, name, pool):
-        matches = get_close_matches(name, pool, n=1, cutoff=0.5)
+        candidates = [candidate for candidate in pool if candidate[:1].lower() == name[:1].lower()]
+        matches = get_close_matches(name, candidates, n=1, cutoff=0.5)
         if matches:
             return matches[0]
         return None

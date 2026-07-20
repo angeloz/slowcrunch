@@ -10,9 +10,21 @@ from slowcrunch.engine import evaluate_expression
 from slowcrunch.runtime.context import EvaluationContext
 from slowcrunch.runtime.session_store import SessionStore
 
-REPL_COMMANDS = (":functions", ":help", ":history", ":load", ":save", ":sessions", ":vars")
+REPL_COMMANDS = (
+    ":clear",
+    ":delete",
+    ":functions",
+    ":help",
+    ":history",
+    ":load",
+    ":reset",
+    ":save",
+    ":sessions",
+    ":vars",
+)
 REPL_KEYWORDS = ("exit", "quit")
-HELP_TOPICS = ("basics", "functions", "history", "sessions", "vars")
+HELP_TOPICS = ("basics", "clear", "delete", "functions", "history", "reset", "sessions", "vars")
+DELETE_TARGETS = ("function", "session", "var")
 
 
 def _completion_candidates(context, text, line_buffer="", begidx=0, session_names=None):
@@ -20,6 +32,8 @@ def _completion_candidates(context, text, line_buffer="", begidx=0, session_name
 
     if stripped_buffer.startswith(":help ") and not text.startswith(":"):
         pool = HELP_TOPICS
+    elif stripped_buffer.startswith(":delete ") and not text.startswith(":"):
+        pool = _delete_completion_pool(context, stripped_buffer, session_names)
     elif stripped_buffer.startswith(":load ") and not text.startswith(":"):
         pool = session_names or ()
     elif line_buffer.startswith(":") or text.startswith(":") or (begidx == 0 and text.startswith(":")):
@@ -30,6 +44,21 @@ def _completion_candidates(context, text, line_buffer="", begidx=0, session_name
         pool = tuple(sorted(set(function_candidates + variable_candidates + list(REPL_KEYWORDS))))
 
     return [candidate for candidate in pool if candidate.startswith(text)]
+
+
+def _delete_completion_pool(context, line_buffer, session_names):
+    remainder = line_buffer[len(":delete "):].strip()
+    if not remainder or " " not in remainder:
+        return DELETE_TARGETS
+
+    target = remainder.split()[0]
+    if target == "var":
+        return tuple(sorted(context.user_variables()))
+    if target == "function":
+        return tuple(sorted(context.user_functions()))
+    if target == "session":
+        return tuple(session_names or ())
+    return ()
 
 
 def _make_completer(context, session_store):
@@ -99,17 +128,21 @@ def _help_lines(topic=None):
     if topic is None:
         return [
             "Available commands:",
+            ":clear    Clear the screen.",
+            ":delete   Delete a variable, function, or saved session.",
             ":functions Show user-defined functions.",
             ":help [topic] Show general help or help for a topic.",
             ":history Show evaluated expressions and results.",
             ":load NAME Load a saved session.",
+            ":reset    Reset the current in-memory session.",
             ":save [NAME] Save the current session.",
             ":sessions List saved sessions.",
             ":vars    Show user-defined variables.",
             "quit     Exit the application.",
             "exit     Exit the application.",
-            "Help topics: basics, functions, history, sessions, vars",
+            "Help topics: basics, clear, delete, functions, history, reset, sessions, vars",
             "Examples:",
+            "  :help delete",
             "  :help functions",
             "  :help sessions",
             "  :help vars",
@@ -146,6 +179,15 @@ def _help_lines(topic=None):
             "  :functions",
         ]
 
+    if topic == "clear":
+        return [
+            "Help: clear",
+            "Use :clear to clear the visible terminal screen.",
+            "This command does not modify variables, functions, history, or saved sessions.",
+            "Example:",
+            "  :clear",
+        ]
+
     if topic == "history":
         return [
             "Help: history",
@@ -156,6 +198,27 @@ def _help_lines(topic=None):
             "  10 / 2",
             "  ans + 3",
             "  :history",
+        ]
+
+    if topic == "delete":
+        return [
+            "Help: delete",
+            "Use :delete with an explicit target to remove state safely.",
+            "Supported targets are var, function, and session.",
+            "Examples:",
+            "  :delete var radius",
+            "  :delete function area",
+            "  :delete session demo",
+        ]
+
+    if topic == "reset":
+        return [
+            "Help: reset",
+            "Use :reset to clear the current in-memory session.",
+            "This removes user variables, user-defined functions, ans history, and recorded entries.",
+            "Saved session files are not deleted.",
+            "Example:",
+            "  :reset",
         ]
 
     if topic == "vars":
@@ -188,13 +251,17 @@ def _help_lines(topic=None):
 
     return [
         f"Unknown help topic '{topic}'.",
-        "Available topics: basics, functions, history, sessions, vars",
+        "Available topics: basics, clear, delete, functions, history, reset, sessions, vars",
     ]
 
 
 def _print_help(topic=None):
     for line in _help_lines(topic):
         print(line)
+
+
+def _clear_screen():
+    print("\033[2J\033[H", end="")
 
 
 def _parse_command(line):
@@ -211,7 +278,7 @@ def run_repl(session_store=None):
 
     print("slowcrunch")
     print("Type an expression or 'quit' to exit.")
-    print("Commands: :functions, :help, :history, :load, :save, :sessions, :vars")
+    print("Commands: :clear, :delete, :functions, :help, :history, :load, :reset, :save, :sessions, :vars")
 
     while True:
         try:
@@ -243,6 +310,12 @@ def run_repl(session_store=None):
                     _print_functions(context)
                     continue
 
+                if command == ":clear":
+                    if len(parts) != 1:
+                        raise SessionError("Usage: :clear")
+                    _clear_screen()
+                    continue
+
                 if command == ":history":
                     _print_history(context)
                     continue
@@ -263,6 +336,14 @@ def run_repl(session_store=None):
                     print(f"Saved session '{session.name}' at {session.saved_at}")
                     continue
 
+                if command == ":reset":
+                    if len(parts) != 1:
+                        raise SessionError("Usage: :reset")
+                    context.reset_user_state()
+                    _configure_readline(context, session_store)
+                    print("Current session reset.")
+                    continue
+
                 if command == ":load":
                     if len(parts) != 2:
                         raise SessionError("Usage: :load name")
@@ -270,6 +351,26 @@ def run_repl(session_store=None):
                     _configure_readline(context, session_store)
                     print(f"Loaded session '{session.name}' from {session.saved_at}")
                     continue
+
+                if command == ":delete":
+                    if len(parts) != 3:
+                        raise SessionError("Usage: :delete var|function|session name")
+                    target, name = parts[1], parts[2]
+                    if target == "var":
+                        context.delete_variable(name)
+                        _configure_readline(context, session_store)
+                        print(f"Deleted variable '{name}'.")
+                        continue
+                    if target == "function":
+                        context.delete_function(name)
+                        _configure_readline(context, session_store)
+                        print(f"Deleted function '{name}'.")
+                        continue
+                    if target == "session":
+                        session_store.delete(name)
+                        print(f"Deleted session '{name}'.")
+                        continue
+                    raise SessionError("Usage: :delete var|function|session name")
 
                 print(f"Error: Unknown command '{line}'. Type :help for available commands.")
             except SessionError as error:

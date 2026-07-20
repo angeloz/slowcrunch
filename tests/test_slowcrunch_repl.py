@@ -31,6 +31,21 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         matches = _completion_candidates(context, ":f", ":f", 0)
         self.assertEqual(matches, [":functions"])
 
+    def test_clear_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":cl", ":cl", 0)
+        self.assertEqual(matches, [":clear"])
+
+    def test_delete_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":de", ":de", 0)
+        self.assertEqual(matches, [":delete"])
+
+    def test_reset_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":re", ":re", 0)
+        self.assertEqual(matches, [":reset"])
+
     def test_save_command_is_completable(self):
         context = EvaluationContext()
         matches = _completion_candidates(context, ":sa", ":sa", 0)
@@ -58,6 +73,34 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         matches = _completion_candidates(context, "fu", ":help fu", 6)
         self.assertEqual(matches, ["functions"])
 
+    def test_delete_target_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, "fu", ":delete fu", 8)
+        self.assertEqual(matches, ["function"])
+
+    def test_delete_variable_name_is_completable(self):
+        context = EvaluationContext()
+        context.set_variable("radius", 5.0)
+        matches = _completion_candidates(context, "ra", ":delete var ra", 12)
+        self.assertEqual(matches, ["radius"])
+
+    def test_delete_function_name_is_completable(self):
+        context = EvaluationContext()
+        context.set_function("area", ["radius"], None)
+        matches = _completion_candidates(context, "ar", ":delete function ar", 17)
+        self.assertEqual(matches, ["area"])
+
+    def test_delete_session_name_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(
+            context,
+            "de",
+            ":delete session de",
+            16,
+            session_names=["demo", "weekly"],
+        )
+        self.assertEqual(matches, ["demo"])
+
     def test_load_session_name_is_completable(self):
         context = EvaluationContext()
         matches = _completion_candidates(
@@ -77,9 +120,22 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
     def test_general_help_mentions_help_topics(self):
         lines = _help_lines()
-        self.assertIn("Help topics: basics, functions, history, sessions, vars", lines)
+        self.assertIn(
+            "Help topics: basics, clear, delete, functions, history, reset, sessions, vars",
+            lines,
+        )
+        self.assertIn("  :help delete", lines)
         self.assertIn("  :help functions", lines)
         self.assertIn("  :help sessions", lines)
+
+    def test_clear_help_explains_screen_only_behavior(self):
+        lines = _help_lines("clear")
+        self.assertIn("Use :clear to clear the visible terminal screen.", lines)
+
+    def test_delete_help_explains_supported_targets(self):
+        lines = _help_lines("delete")
+        self.assertIn("Supported targets are var, function, and session.", lines)
+        self.assertIn("  :delete session demo", lines)
 
     def test_functions_help_explains_definition_syntax(self):
         lines = _help_lines("functions")
@@ -89,6 +145,11 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         )
         self.assertIn("  :functions", lines)
 
+    def test_reset_help_explains_in_memory_reset(self):
+        lines = _help_lines("reset")
+        self.assertIn("Use :reset to clear the current in-memory session.", lines)
+        self.assertIn("Saved session files are not deleted.", lines)
+
     def test_vars_help_explains_assignment_syntax(self):
         lines = _help_lines("vars")
         self.assertIn("Assign user variables with the form name = expression.", lines)
@@ -97,7 +158,10 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
     def test_unknown_help_topic_lists_available_topics(self):
         lines = _help_lines("unknown")
         self.assertEqual(lines[0], "Unknown help topic 'unknown'.")
-        self.assertEqual(lines[1], "Available topics: basics, functions, history, sessions, vars")
+        self.assertEqual(
+            lines[1],
+            "Available topics: basics, clear, delete, functions, history, reset, sessions, vars",
+        )
 
     def test_sessions_help_explains_save_and_load(self):
         lines = _help_lines("sessions")

@@ -54,9 +54,24 @@ class SlowCrunchEngineTest(unittest.TestCase):
         self.assertEqual(reused, 6.0)
         self.assertEqual(context.get_variable("mass"), 4.0)
 
+    def test_user_variable_can_be_deleted(self):
+        context = EvaluationContext()
+        _, context = evaluate_expression("mass = 12 / 3", context)
+        context.delete_variable("mass")
+        self.assertEqual(context.user_variables(), {})
+        with self.assertRaises(EvaluationError) as error:
+            context.get_variable("mass")
+        self.assertEqual(str(error.exception), "Unknown variable: mass")
+
     def test_protected_variable_cannot_be_assigned(self):
         with self.assertRaises(EvaluationError):
             evaluate_expression("pi = 4")
+
+    def test_protected_variable_cannot_be_deleted(self):
+        context = EvaluationContext()
+        with self.assertRaises(EvaluationError) as error:
+            context.delete_variable("pi")
+        self.assertEqual(str(error.exception), "Protected variable cannot be deleted: pi")
 
     def test_division_by_zero(self):
         with self.assertRaises(EvaluationError):
@@ -70,6 +85,30 @@ class SlowCrunchEngineTest(unittest.TestCase):
         self.assertEqual(called, 16.0)
         self.assertEqual(context.history, [16.0])
         self.assertEqual(context.user_functions()["square"].signature(), "square(x)")
+
+    def test_user_function_can_be_deleted(self):
+        context = EvaluationContext()
+        _, context = evaluate_expression("square(x) = x ^ 2", context)
+        context.delete_function("square")
+        self.assertEqual(context.user_functions(), {})
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("square(4)", context)
+        self.assertEqual(
+            str(error.exception),
+            "Unknown function: square. Did you mean 'sqrt'?",
+        )
+
+    def test_reset_user_state_clears_runtime_state(self):
+        context = EvaluationContext()
+        _, context = evaluate_expression("mass = 12 / 3", context)
+        _, context = evaluate_expression("square(x) = x ^ 2", context)
+        _, context = evaluate_expression("square(mass)", context)
+        context.reset_user_state()
+        self.assertEqual(context.user_variables(), {})
+        self.assertEqual(context.user_functions(), {})
+        self.assertEqual(context.history, [])
+        self.assertEqual(context.entries, [])
+        self.assertEqual(context.get_variable("ans"), 0.0)
 
     def test_user_function_can_use_global_variables(self):
         context = EvaluationContext()

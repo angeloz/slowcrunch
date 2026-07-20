@@ -81,6 +81,13 @@ class SessionStore:
     def session_names(self):
         return [session.name for session in self.list_sessions()]
 
+    def delete(self, name):
+        session_name = self._normalize_name(name)
+        path = self._path_for(session_name)
+        if not path.exists():
+            raise SessionError(f"Unknown session: {session_name}")
+        path.unlink()
+
     def _serialize_context(self, context, name, saved_at):
         return {
             "version": SESSION_VERSION,
