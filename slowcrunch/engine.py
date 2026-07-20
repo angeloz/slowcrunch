@@ -14,6 +14,7 @@ def parse_input(text):
 def evaluate_expression(text, context=None):
     context = context or EvaluationContext()
     ast = parse_input(text)
-    result = Evaluator(context).evaluate(ast)
-    context.record_entry(text, result)
+    evaluated = Evaluator(context).evaluate_with_kind(ast)
+    result = evaluated.value
+    context.record_entry(text, result, evaluated.kind)
     return result, context

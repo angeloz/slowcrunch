@@ -1,3 +1,5 @@
+import math
+
 from dataclasses import dataclass
 
 from slowcrunch.core.errors import TokenizeError
@@ -25,6 +27,8 @@ SINGLE_CHAR_TOKENS = {
     "=": "ASSIGN",
     "(": "LPAREN",
     ")": "RPAREN",
+    "[": "LBRACKET",
+    "]": "RBRACKET",
     ",": "COMMA",
     ";": "SEMI",
 }
@@ -58,8 +62,15 @@ def tokenize(text):
             duration_match = _scan_duration_literal(text, start)
             if duration_match is not None:
                 duration_end, duration_value = duration_match
-                tokens.append(Token("NUMBER", str(duration_value), start))
+                tokens.append(Token("DURATION_NUMBER", str(duration_value), start))
                 index = duration_end
+                continue
+
+            pi_multiple_match = _scan_pi_multiple_literal(text, start, index)
+            if pi_multiple_match is not None:
+                pi_end, pi_value = pi_multiple_match
+                tokens.append(Token("ANGLE_NUMBER", str(pi_value), start))
+                index = pi_end
                 continue
 
             suffix = ""
@@ -82,6 +93,8 @@ def tokenize(text):
             if suffix == "" and unit is not None:
                 index += len(unit)
 
+            is_angle = unit is not None
+
             is_imaginary = False
             if index < len(text) and text[index] == "i":
                 next_index = index + 1
@@ -90,7 +103,13 @@ def tokenize(text):
                     index += 1
 
             value = parse_number_literal(text[start:index - 1] if is_imaginary else text[start:index])
-            tokens.append(Token("IMAG_NUMBER" if is_imaginary else "NUMBER", str(value), start))
+            if is_imaginary:
+                token_kind = "IMAG_NUMBER"
+            elif is_angle:
+                token_kind = "ANGLE_NUMBER"
+            else:
+                token_kind = "NUMBER"
+            tokens.append(Token(token_kind, str(value), start))
             continue
 
         if char.isalpha() or char == "_":
@@ -159,6 +178,18 @@ def _scan_duration_literal(text, start):
         return None
 
     return end_index, sum(components)
+
+
+def _scan_pi_multiple_literal(text, start, number_end):
+    if text[number_end:number_end + 2] != "pi":
+        return None
+
+    end_index = number_end + 2
+    if end_index < len(text) and (text[end_index].isalnum() or text[end_index] == "_"):
+        return None
+
+    multiplier = float(text[start:number_end])
+    return end_index, multiplier * math.pi
 
 
 def _match_angle_unit(text, index):

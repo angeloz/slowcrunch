@@ -47,6 +47,21 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         matches = _completion_candidates(context, ":h", ":h", 0)
         self.assertEqual(matches, [":help", ":history"])
 
+    def test_angles_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":an", ":an", 0)
+        self.assertEqual(matches, [":angles"])
+
+    def test_tolerance_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":to", ":to", 0)
+        self.assertEqual(matches, [":tolerance"])
+
+    def test_angle_mode_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, "dm", ":angles dm", 8)
+        self.assertEqual(matches, ["dms"])
+
     def test_format_command_is_completable(self):
         context = EvaluationContext()
         matches = _completion_candidates(context, ":fo", ":fo", 0)
@@ -172,17 +187,32 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
     def test_general_help_mentions_help_topics(self):
         lines = _help_lines()
+        self.assertIn(":angles [MODE] Show or change the angle output mode.", lines)
         self.assertIn(":format [MODE] Show or change the numeric output mode.", lines)
+        self.assertIn(":tolerance [VALUE] Show or change the zero tolerance.", lines)
         self.assertIn(":history [text|!index] Show, filter, or replay history.", lines)
         self.assertIn(
-            "Help topics: basics, clear, delete, format, functions, history, new, reset, sessions, status, vars",
+            "Help topics: angles, basics, clear, delete, format, functions, history, new, reset, sessions, status, tolerance, vars",
             lines,
         )
+        self.assertIn("  :help angles", lines)
         self.assertIn("  :help delete", lines)
         self.assertIn("  :help format", lines)
         self.assertIn("  :help functions", lines)
         self.assertIn("  :help sessions", lines)
         self.assertIn("  :help status", lines)
+        self.assertIn("  :help tolerance", lines)
+
+    def test_angles_help_explains_available_modes(self):
+        lines = _help_lines("angles")
+        self.assertIn("Available modes: deg, dms, rad.", lines)
+        self.assertIn("This affects angle-typed results such as 90deg / 2 or arg(i).", lines)
+        self.assertIn("Use compact pi-multiples such as 2pi or 0.5pi for angle-typed radian input.", lines)
+        self.assertIn("Use 360deg or 2 * 180deg when you want 2*pi as an angle-typed value.", lines)
+        self.assertIn("Use 2 * pi when you only need the numeric radian value.", lines)
+        self.assertIn("  :angles rad", lines)
+        self.assertIn("  2pi", lines)
+        self.assertIn("  360deg", lines)
 
     def test_clear_help_explains_screen_only_behavior(self):
         lines = _help_lines("clear")
@@ -196,18 +226,53 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
     def test_functions_help_explains_definition_syntax(self):
         lines = _help_lines("functions")
         self.assertIn("These functions also accept complex arguments.", lines)
+        self.assertIn("Supported built-in functions are grouped by category below.", lines)
+        self.assertIn("Statistics functions currently use list arguments such as [1, 2, 3].", lines)
+        self.assertIn("Inverse trigonometric functions and arg return angle-typed results and follow :angles.", lines)
         self.assertIn(
             "Define user functions with the form name(param1, param2) = expression.",
             lines,
         )
-        self.assertIn("Built-in helpers for complex values include re, im, conj, and arg.", lines)
+        self.assertIn(
+            "Trigonometric: sin, cos, tan, cot, sec, csc",
+            lines,
+        )
+        self.assertIn(
+            "Inverse trigonometric: asin, acos, atan, atan2, acot, asec, acsc, arg",
+            lines,
+        )
+        self.assertIn("Hyperbolic: sinh, cosh, tanh, coth, sech, csch", lines)
+        self.assertIn("Inverse hyperbolic: asinh, acosh, atanh", lines)
+        self.assertIn("Exponential and logarithmic: exp, ln, log, log10, log2, sqrt", lines)
+        self.assertIn("Complex and utility: abs, floor, ceil, re, im, conj", lines)
+        self.assertIn("Statistics: len, sum, min, max, mean", lines)
+        self.assertIn("Formatting helpers: deg, dms, hms", lines)
+        self.assertIn("  asin(1)", lines)
+        self.assertIn("  atan2(1, 1)", lines)
+        self.assertIn("  cot(45deg)", lines)
+        self.assertIn("  sinh(1)", lines)
+        self.assertIn("  exp(2)", lines)
+        self.assertIn("  len([1, 2, 3])", lines)
+        self.assertIn("  sum([1, 2, 3])", lines)
+        self.assertIn("  mean([1, 2, 3])", lines)
+        self.assertIn("  deg(pi / 2)", lines)
+        self.assertIn("  dms(pi / 6)", lines)
+        self.assertIn("  hms(4830)", lines)
         self.assertIn("  :functions", lines)
 
     def test_format_help_explains_available_modes(self):
         lines = _help_lines("format")
         self.assertIn("Available modes: plain, scientific, engineering, si.", lines)
+        self.assertIn("Use :angles for angle-specific output policy.", lines)
+        self.assertIn("Use :tolerance for near-zero normalization.", lines)
         self.assertIn("SI uses engineering steps with SI prefixes, such as 12k or 220u.", lines)
         self.assertIn("  :format si", lines)
+
+    def test_tolerance_help_explains_zero_threshold(self):
+        lines = _help_lines("tolerance")
+        self.assertIn("Values with absolute magnitude below the tolerance are normalized to zero.", lines)
+        self.assertIn("Use a non-negative floating-point value, such as 1e-12.", lines)
+        self.assertIn("  :tolerance 1e-12", lines)
 
     def test_reset_help_explains_in_memory_reset(self):
         lines = _help_lines("reset")
@@ -228,7 +293,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
     def test_status_help_mentions_dirty_state(self):
         lines = _help_lines("status")
-        self.assertIn("The status includes the active session name, last save time, dirty state, format mode, and object counts.", lines)
+        self.assertIn("The status includes the active session name, last save time, dirty state, numeric format mode, angle mode, zero tolerance, and object counts.", lines)
 
     def test_vars_help_explains_assignment_syntax(self):
         lines = _help_lines("vars")
@@ -242,11 +307,25 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn("Numbers can use scientific notation such as 1.2e6.", lines)
         self.assertIn("Numbers can use SI prefixes such as 10k, 1M, 220u, or 3f.", lines)
         self.assertIn("Angles can use explicit units such as 90deg, 1.5rad, or 2mrad.", lines)
+        self.assertIn("Angle arithmetic keeps angle-style output when the result stays an angle.", lines)
+        self.assertIn("Use :angles to choose whether angle results are shown as deg, dms, or rad.", lines)
+        self.assertIn("Use compact pi-multiples such as 2pi or 0.5pi for angle-typed radian input.", lines)
+        self.assertIn("Use 360deg or 2 * 180deg when you want 2*pi to keep angle-style output.", lines)
         self.assertIn("Durations can use explicit units such as 1h 20m 30s, 45min, or 90s.", lines)
+        self.assertIn("Duration arithmetic keeps duration-style output when the result stays a duration.", lines)
+        self.assertIn("Use :tolerance to control when very small values are normalized to zero.", lines)
+        self.assertIn("Use deg(x), dms(x), and hms(x) to format angles and durations explicitly.", lines)
         self.assertIn("  2 + 3i", lines)
         self.assertIn("  10k + 25", lines)
         self.assertIn("  sin(90deg)", lines)
+        self.assertIn("  2pi", lines)
+        self.assertIn("  360deg", lines)
+        self.assertIn("  90deg / 2", lines)
         self.assertIn("  1h 20m 30s", lines)
+        self.assertIn("  12h 20m 12s - 6h 49m 39s", lines)
+        self.assertIn("  deg(pi / 2)", lines)
+        self.assertIn("  dms(pi / 6)", lines)
+        self.assertIn("  hms(4830)", lines)
         self.assertIn("  sqrt(-1)", lines)
 
     def test_unknown_help_topic_lists_available_topics(self):
@@ -254,7 +333,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertEqual(lines[0], "Unknown help topic 'unknown'.")
         self.assertEqual(
             lines[1],
-            "Available topics: basics, clear, delete, format, functions, history, new, reset, sessions, status, vars",
+            "Available topics: angles, basics, clear, delete, format, functions, history, new, reset, sessions, status, tolerance, vars",
         )
 
     def test_sessions_help_explains_save_and_load(self):
@@ -272,19 +351,24 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertEqual(lines[1], "Saved at: never")
         self.assertEqual(lines[2], "Modified: no")
         self.assertEqual(lines[3], "Format: plain")
+        self.assertEqual(lines[4], "Angles: deg")
+        self.assertEqual(lines[5], "Zero tolerance: 1e-12")
 
     def test_status_lines_for_saved_dirty_session(self):
         context = EvaluationContext()
         context.set_variable("radius", 5.0)
         context.set_function("area", ["r"], None)
+        context.set_zero_tolerance(1e-12)
         state = SessionState("demo", "2026-07-20T13:00:00+02:00", True)
-        lines = _status_lines(context, state, DisplaySettings("si"))
+        lines = _status_lines(context, state, DisplaySettings("si", "rad"))
         self.assertEqual(lines[0], "Session: demo")
         self.assertEqual(lines[1], "Saved at: 2026-07-20T13:00:00+02:00")
         self.assertEqual(lines[2], "Modified: yes")
         self.assertEqual(lines[3], "Format: si")
-        self.assertEqual(lines[4], "User variables: 1")
-        self.assertEqual(lines[5], "User functions: 1")
+        self.assertEqual(lines[4], "Angles: rad")
+        self.assertEqual(lines[5], "Zero tolerance: 1e-12")
+        self.assertEqual(lines[6], "User variables: 1")
+        self.assertEqual(lines[7], "User functions: 1")
 
     def test_history_lines_show_all_entries(self):
         context = EvaluationContext()
@@ -330,6 +414,31 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         context.record_entry("10000", 10000.0)
         lines = _history_lines(context, DisplaySettings("si"))
         self.assertEqual(lines, ["1: 10000 = 10k"])
+
+    def test_history_lines_render_duration_entries_as_durations(self):
+        context = EvaluationContext()
+        context.record_entry("12h 20m 12s - 6h 49m 39s", 19833.0, "duration")
+        lines = _history_lines(context, DisplaySettings())
+        self.assertEqual(lines, ["1: 12h 20m 12s - 6h 49m 39s = 5h 30m 33s"])
+
+    def test_history_lines_use_zero_tolerance_for_near_zero_results(self):
+        context = EvaluationContext()
+        context.set_zero_tolerance(1e-12)
+        context.record_entry("sin(360deg)", -2.4492935982947064e-16)
+        lines = _history_lines(context, DisplaySettings())
+        self.assertEqual(lines, ["1: sin(360deg) = 0.0"])
+
+    def test_history_lines_render_angle_entries_as_angles(self):
+        context = EvaluationContext()
+        context.record_entry("90deg / 2", 0.7853981633974483, "angle")
+        lines = _history_lines(context, DisplaySettings())
+        self.assertEqual(lines, ["1: 90deg / 2 = 45deg"])
+
+    def test_history_lines_render_angle_entries_in_dms_mode(self):
+        context = EvaluationContext()
+        context.record_entry("90deg / 2", 0.7853981633974483, "angle")
+        lines = _history_lines(context, DisplaySettings(angle_mode="dms"))
+        self.assertEqual(lines, ['1: 90deg / 2 = 45deg 0\' 0"'])
 
     def test_history_replay_entry_returns_indexed_entry(self):
         context = EvaluationContext()

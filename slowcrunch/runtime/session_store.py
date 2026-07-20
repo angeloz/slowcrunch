@@ -116,9 +116,12 @@ class SessionStore:
             "name": name,
             "saved_at": saved_at,
             "ans": encode_value(context.variables["ans"]),
+            "ans_kind": context.get_variable_kind("ans"),
+            "zero_tolerance": context.zero_tolerance,
             "history": encode_value(context.history),
             "entries": encode_value(context.entries),
             "variables": encode_value(context.user_variables()),
+            "variable_kinds": context.user_variable_kinds(),
             "functions": [
                 {
                     "name": function.name,
@@ -131,9 +134,11 @@ class SessionStore:
 
     def _deserialize_context(self, data):
         context = EvaluationContext()
+        context.set_zero_tolerance(data.get("zero_tolerance", context.zero_tolerance))
+        variable_kinds = dict(data.get("variable_kinds", {}))
 
         for name, value in data.get("variables", {}).items():
-            context.set_variable(name, decode_value(value))
+            context.set_variable(name, decode_value(value), variable_kinds.get(name))
 
         for function in data.get("functions", []):
             context.set_function(
@@ -145,6 +150,9 @@ class SessionStore:
         context.history = decode_value(list(data.get("history", [])))
         context.entries = decode_value(list(data.get("entries", [])))
         context.variables["ans"] = decode_value(data.get("ans", 0.0))
+        ans_kind = data.get("ans_kind")
+        if ans_kind is not None:
+            context.variable_kinds["ans"] = ans_kind
         return context
 
     def _path_for(self, name):

@@ -4,6 +4,12 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class NumberNode:
     value: object
+    value_kind: str | None = None
+
+
+@dataclass(frozen=True)
+class ListNode:
+    items: list
 
 
 @dataclass(frozen=True)

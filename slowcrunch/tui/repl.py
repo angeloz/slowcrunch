@@ -8,11 +8,13 @@ except ImportError:  # pragma: no cover
 
 from slowcrunch.core.errors import IncompleteInputError, SessionError, SlowCrunchError
 from slowcrunch.engine import evaluate_expression, parse_input
+from slowcrunch.runtime.builtins import builtin_function_groups
 from slowcrunch.runtime.context import EvaluationContext
-from slowcrunch.runtime.numbers import FORMAT_MODES, format_value
+from slowcrunch.runtime.numbers import ANGLE_FORMAT_MODES, FORMAT_MODES, format_value
 from slowcrunch.runtime.session_store import SessionStore
 
 REPL_COMMANDS = (
+    ":angles",
     ":clear",
     ":delete",
     ":format",
@@ -27,10 +29,11 @@ REPL_COMMANDS = (
     ":saveas",
     ":sessions",
     ":status",
+    ":tolerance",
     ":vars",
 )
 REPL_KEYWORDS = ("exit", "quit")
-HELP_TOPICS = ("basics", "clear", "delete", "format", "functions", "history", "new", "reset", "sessions", "status", "vars")
+HELP_TOPICS = ("angles", "basics", "clear", "delete", "format", "functions", "history", "new", "reset", "sessions", "status", "tolerance", "vars")
 DELETE_TARGETS = ("function", "session", "var")
 
 
@@ -44,6 +47,7 @@ class SessionState:
 @dataclass
 class DisplaySettings:
     format_mode: str = "plain"
+    angle_mode: str = "deg"
 
 
 def _completion_candidates(context, text, line_buffer="", begidx=0, session_names=None):
@@ -51,6 +55,8 @@ def _completion_candidates(context, text, line_buffer="", begidx=0, session_name
 
     if stripped_buffer.startswith(":help ") and not text.startswith(":"):
         pool = HELP_TOPICS
+    elif stripped_buffer.startswith(":angles ") and not text.startswith(":"):
+        pool = ANGLE_FORMAT_MODES
     elif stripped_buffer.startswith(":format ") and not text.startswith(":"):
         pool = FORMAT_MODES
     elif stripped_buffer.startswith(":delete ") and not text.startswith(":"):
@@ -115,13 +121,25 @@ def _print_history(context, display_settings, query=None):
         print(line)
 
 
+def _render_value(value, display_settings, kind=None, zero_tolerance=None):
+    return format_value(
+        value,
+        display_settings.format_mode,
+        kind,
+        display_settings.angle_mode,
+        zero_tolerance if zero_tolerance is not None else 0.0,
+    )
+
+
 def _print_variables(context, display_settings):
     variables = context.user_variables()
     if not variables:
         print("No user variables.")
         return
     for name in sorted(variables):
-        print(f"{name} = {format_value(variables[name], display_settings.format_mode)}")
+        print(
+            f"{name} = {_render_value(variables[name], display_settings, context.get_variable_kind(name), context.zero_tolerance)}"
+        )
 
 
 def _print_functions(context):
@@ -151,6 +169,8 @@ def _status_lines(context, session_state, display_settings):
         f"Saved at: {saved_at}",
         f"Modified: {modified}",
         f"Format: {display_settings.format_mode}",
+        f"Angles: {display_settings.angle_mode}",
+        f"Zero tolerance: {context.zero_tolerance:.12g}",
         f"User variables: {len(context.user_variables())}",
         f"User functions: {len(context.user_functions())}",
         f"History entries: {len(context.entries)}",
@@ -174,13 +194,18 @@ def _history_lines(context, display_settings, query=None):
             (index, entry)
             for index, entry in entries
             if lowered_query in entry["expression"].lower()
-            or lowered_query in format_value(entry["result"], display_settings.format_mode).lower()
+            or lowered_query in _render_value(
+                entry["result"],
+                display_settings,
+                entry.get("kind"),
+                context.zero_tolerance,
+            ).lower()
         ]
         if not entries:
             return [f"No history entries matching '{query}'."]
 
     return [
-        f"{index}: {entry['expression']} = {format_value(entry['result'], display_settings.format_mode)}"
+        f"{index}: {entry['expression']} = {_render_value(entry['result'], display_settings, entry.get('kind'), context.zero_tolerance)}"
         for index, entry in entries
     ]
 
@@ -204,6 +229,7 @@ def _help_lines(topic=None):
     if topic is None:
         return [
             "Available commands:",
+            ":angles [MODE] Show or change the angle output mode.",
             ":clear    Clear the screen.",
             ":delete   Delete a variable, function, or saved session.",
             ":format [MODE] Show or change the numeric output mode.",
@@ -218,21 +244,47 @@ def _help_lines(topic=None):
             ":saveas NAME Save the current session under a new name.",
             ":sessions List saved sessions.",
             ":status   Show the current session state.",
+            ":tolerance [VALUE] Show or change the zero tolerance.",
             ":vars    Show user-defined variables.",
             "quit     Exit the application.",
             "exit     Exit the application.",
-            "Help topics: basics, clear, delete, format, functions, history, new, reset, sessions, status, vars",
+            "Help topics: angles, basics, clear, delete, format, functions, history, new, reset, sessions, status, tolerance, vars",
             "Examples:",
+            "  :help angles",
             "  :help delete",
             "  :help format",
             "  :help functions",
             "  :help status",
             "  :help sessions",
+            "  :help tolerance",
             "  :help vars",
             "  2 + 3 * 4",
             "  radius = 5",
             "  10k",
             "  area(r) = pi * r ^ 2",
+        ]
+
+    if topic == "angles":
+        return [
+            "Help: angles",
+            "Use :angles to inspect or change the angle output mode.",
+            "Available modes: deg, dms, rad.",
+            "deg renders angle results in decimal degrees, such as 45deg.",
+            "dms renders angle results as degrees, minutes, and seconds.",
+            "rad renders angle results in radians with a rad suffix.",
+            "This affects angle-typed results such as 90deg / 2 or arg(i).",
+            "Use compact pi-multiples such as 2pi or 0.5pi for angle-typed radian input.",
+            "Use 360deg or 2 * 180deg when you want 2*pi as an angle-typed value.",
+            "Use 2 * pi when you only need the numeric radian value.",
+            "Examples:",
+            "  :angles",
+            "  :angles deg",
+            "  :angles dms",
+            "  :angles rad",
+            "  2pi",
+            "  360deg",
+            "  360deg / 2",
+            "  arg(i)",
         ]
 
     if topic == "basics":
@@ -242,9 +294,17 @@ def _help_lines(topic=None):
             "Supported operators: +, -, *, /, ^",
             "Numbers can use scientific notation such as 1.2e6.",
             "Numbers can use SI prefixes such as 10k, 1M, 220u, or 3f.",
+            "Lists can use bracket literals such as [1, 2, 3] and can be assigned to variables.",
             "Angles can use explicit units such as 90deg, 1.5rad, or 2mrad.",
+            "Angle arithmetic keeps angle-style output when the result stays an angle.",
+            "Use :angles to choose whether angle results are shown as deg, dms, or rad.",
+            "Use compact pi-multiples such as 2pi or 0.5pi for angle-typed radian input.",
+            "Use 360deg or 2 * 180deg when you want 2*pi to keep angle-style output.",
             "Durations can use explicit units such as 1h 20m 30s, 45min, or 90s.",
             "Use min for standalone minutes; the short m form is accepted inside composite durations.",
+            "Duration arithmetic keeps duration-style output when the result stays a duration.",
+            "Use :tolerance to control when very small values are normalized to zero.",
+            "Use deg(x), dms(x), and hms(x) to format angles and durations explicitly.",
             "Use parentheses to group sub-expressions.",
             "Use a trailing ';' to continue a multi-statement program on the next line.",
             "The continuation prompt is '.. ' while additional input is expected.",
@@ -254,8 +314,17 @@ def _help_lines(topic=None):
             "  2 + 3 * 4",
             "  2 + 3i",
             "  10k + 25",
+            "  values = [1, 2, 3]",
             "  sin(90deg)",
+            "  2pi",
+            "  360deg",
+            "  90deg / 2",
             "  1h 20m 30s",
+            "  12h 20m 12s - 6h 49m 39s",
+            "  deg(pi / 2)",
+            "  dms(pi / 6)",
+            "  hms(4830)",
+            "  :tolerance 1e-12",
             "  1.2e6",
             "  radius = 5;",
             "  .. area(r) = pi * r ^ 2;",
@@ -269,6 +338,8 @@ def _help_lines(topic=None):
             "Help: format",
             "Use :format to inspect or change the numeric output mode.",
             "Available modes: plain, scientific, engineering, si.",
+            "Use :angles for angle-specific output policy.",
+            "Use :tolerance for near-zero normalization.",
             "Plain keeps the default Python-like decimal rendering.",
             "Scientific uses mantissa and exponent, such as 1.2e6.",
             "Engineering keeps exponents in steps of three, such as 12e3.",
@@ -281,20 +352,37 @@ def _help_lines(topic=None):
         ]
 
     if topic == "functions":
+        category_lines = [
+            f"{category}: {', '.join(functions)}"
+            for category, functions in builtin_function_groups()
+        ]
         return [
             "Help: functions",
-            "Built-in functions include abs, sin, cos, tan, sqrt, log, re, im, conj, and arg.",
+            "Supported built-in functions are grouped by category below.",
             "These functions also accept complex arguments.",
-            "Built-in helpers for complex values include re, im, conj, and arg.",
+            "Statistics functions currently use list arguments such as [1, 2, 3].",
+            "Inverse trigonometric functions and arg return angle-typed results and follow :angles.",
+            *category_lines,
             "Define user functions with the form name(param1, param2) = expression.",
             "Function parameters are local to the function body.",
             "User-defined functions can reference global variables.",
             "Examples:",
             "  square(x) = x ^ 2",
             "  area(r) = pi * r ^ 2",
+            "  asin(1)",
+            "  atan2(1, 1)",
+            "  cot(45deg)",
+            "  sinh(1)",
+            "  exp(2)",
+            "  len([1, 2, 3])",
+            "  sum([1, 2, 3])",
+            "  mean([1, 2, 3])",
             "  sqrt(-1)",
             "  conj(2 + 3i)",
             "  arg(i)",
+            "  deg(pi / 2)",
+            "  dms(pi / 6)",
+            "  hms(4830)",
             "  area(5)",
             "  :functions",
         ]
@@ -395,16 +483,29 @@ def _help_lines(topic=None):
         return [
             "Help: status",
             "Use :status to inspect the current session.",
-            "The status includes the active session name, last save time, dirty state, format mode, and object counts.",
+            "The status includes the active session name, last save time, dirty state, numeric format mode, angle mode, zero tolerance, and object counts.",
             "Examples:",
             "  :status",
             "  :save demo",
             "  :status",
         ]
 
+    if topic == "tolerance":
+        return [
+            "Help: tolerance",
+            "Use :tolerance to inspect or change the zero tolerance.",
+            "Values with absolute magnitude below the tolerance are normalized to zero.",
+            "This affects evaluation results, ans, history rendering, and near-zero angle outputs.",
+            "Use a non-negative floating-point value, such as 1e-12.",
+            "Examples:",
+            "  :tolerance",
+            "  :tolerance 1e-12",
+            "  sin(360deg)",
+        ]
+
     return [
         f"Unknown help topic '{topic}'.",
-        "Available topics: basics, clear, delete, format, functions, history, new, reset, sessions, status, vars",
+        "Available topics: angles, basics, clear, delete, format, functions, history, new, reset, sessions, status, tolerance, vars",
     ]
 
 
@@ -504,8 +605,8 @@ def run_repl(session_store=None):
     print("slowcrunch")
     print("Type an expression or 'quit' to exit.")
     print(
-        "Commands: :clear, :delete, :format, :functions, :help, :history, :load, "
-        ":new, :rename-session, :reset, :save, :saveas, :sessions, :status, :vars"
+        "Commands: :angles, :clear, :delete, :format, :functions, :help, :history, :load, "
+        ":new, :rename-session, :reset, :save, :saveas, :sessions, :status, :tolerance, :vars"
     )
 
     while True:
@@ -541,6 +642,19 @@ def run_repl(session_store=None):
                     _print_functions(context)
                     continue
 
+                if command == ":angles":
+                    if len(parts) > 2:
+                        raise SessionError("Usage: :angles [deg|dms|rad]")
+                    if len(parts) == 1:
+                        print(f"Angle format: {display_settings.angle_mode}")
+                        continue
+                    mode = parts[1].lower()
+                    if mode not in ANGLE_FORMAT_MODES:
+                        raise SessionError("Usage: :angles [deg|dms|rad]")
+                    display_settings.angle_mode = mode
+                    print(f"Angle format set to {mode}.")
+                    continue
+
                 if command == ":format":
                     if len(parts) > 2:
                         raise SessionError("Usage: :format [plain|scientific|engineering|si]")
@@ -558,6 +672,21 @@ def run_repl(session_store=None):
                     if len(parts) != 1:
                         raise SessionError("Usage: :status")
                     _print_status(context, session_state, display_settings)
+                    continue
+
+                if command == ":tolerance":
+                    if len(parts) > 2:
+                        raise SessionError("Usage: :tolerance [value]")
+                    if len(parts) == 1:
+                        print(f"Zero tolerance: {context.zero_tolerance:.12g}")
+                        continue
+                    try:
+                        context.set_zero_tolerance(float(parts[1]))
+                    except ValueError as error:
+                        raise SessionError("Usage: :tolerance [value]") from error
+                    except SlowCrunchError as error:
+                        raise SessionError(str(error)) from error
+                    print(f"Zero tolerance set to {context.zero_tolerance:.12g}.")
                     continue
 
                 if command == ":clear":
@@ -583,7 +712,7 @@ def run_repl(session_store=None):
                             print(f"Error: {error}")
                             continue
                         _mark_session_dirty(session_state)
-                        print(format_value(result, display_settings.format_mode))
+                        print(_render_value(result, display_settings, context.entries[-1].get("kind"), context.zero_tolerance))
                         continue
 
                     _print_history(context, display_settings, " ".join(parts[1:]))
@@ -702,4 +831,4 @@ def run_repl(session_store=None):
             continue
 
         _mark_session_dirty(session_state)
-        print(format_value(result, display_settings.format_mode))
+        print(_render_value(result, display_settings, context.entries[-1].get("kind"), context.zero_tolerance))

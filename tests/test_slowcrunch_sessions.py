@@ -64,6 +64,54 @@ class SlowCrunchSessionStoreTest(unittest.TestCase):
             self.assertEqual(result, complex(-1.0, 5.0))
             self.assertEqual(loaded_context.get_variable("ans"), complex(-1.0, 5.0))
 
+    def test_save_and_load_list_values(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            context = None
+
+            for expression in (
+                "values = [1, 2, 4, 5]",
+                "values",
+            ):
+                _, context = evaluate_expression(expression, context)
+
+            store.save(context, "lists")
+            loaded_context, _ = store.load("lists")
+
+            self.assertEqual(loaded_context.get_variable("values"), [1.0, 2.0, 4.0, 5.0])
+            self.assertEqual(loaded_context.entries[-1]["result"], [1.0, 2.0, 4.0, 5.0])
+
+    def test_save_and_load_value_kinds(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            context = None
+
+            for expression in (
+                "bearing = 45deg",
+                "work = 1h 20m 30s",
+                "12h 20m 12s - 6h 49m 39s",
+            ):
+                _, context = evaluate_expression(expression, context)
+
+            store.save(context, "kinds")
+            loaded_context, _ = store.load("kinds")
+
+            self.assertEqual(loaded_context.get_variable_kind("bearing"), "angle")
+            self.assertEqual(loaded_context.get_variable_kind("work"), "duration")
+            self.assertEqual(loaded_context.get_variable_kind("ans"), "duration")
+            self.assertEqual(loaded_context.entries[-1]["kind"], "duration")
+
+    def test_save_and_load_zero_tolerance(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            _, context = evaluate_expression("sin(360deg)")
+            context.set_zero_tolerance(1e-12)
+
+            store.save(context, "tolerance")
+            loaded_context, _ = store.load("tolerance")
+
+            self.assertEqual(loaded_context.zero_tolerance, 1e-12)
+
     def test_list_sessions_returns_saved_sessions(self):
         with tempfile.TemporaryDirectory() as tempdir:
             store = SessionStore(tempdir)

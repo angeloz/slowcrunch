@@ -20,14 +20,16 @@ The project currently provides a small REPL-based TUI with:
 - scientific notation such as `1.2e6`
 - SI-prefix literals such as `10k`, `1M`, `220u`, `3f`, and `2a`
 - explicit angle literals such as `90deg`, `1.5rad`, and `2mrad`
+- compact pi-multiple angle literals such as `2pi` and `0.5pi`
 - explicit duration literals such as `1h 20m 30s`, `45min`, and `90s`
-- built-in functions: `abs`, `sin`, `cos`, `tan`, `sqrt`, `log`, `re`, `im`, `conj`, `arg`
+- list literals such as `[1, 2, 3]`
+- built-in functions across trigonometric, inverse trigonometric, hyperbolic, logarithmic, complex, statistics, and formatting categories
 - built-in constants: `pi`, `e`, `i`
 - `ans` for the last result
 - complex numbers such as `2 + 3i` and `sqrt(-1)`
 - user variable assignment such as `x = 2 * 5`
 - user-defined functions such as `area(r) = pi * r ^ 2`
-- `:clear`, `:delete`, `:format`, `:functions`, `:history`, `:help`, `:load`, `:new`, `:rename-session`, `:reset`, `:save`, `:saveas`, `:sessions`, `:status`, and `:vars` commands
+- `:angles`, `:clear`, `:delete`, `:format`, `:functions`, `:history`, `:help`, `:load`, `:new`, `:rename-session`, `:reset`, `:save`, `:saveas`, `:sessions`, `:status`, `:tolerance`, and `:vars` commands
 - history filtering with `:history text` and history replay with `:history !index`
 - output modes: `plain`, `scientific`, `engineering`, and `si`
 - topic help such as `:help functions` and `:help vars`
@@ -67,7 +69,7 @@ python3 -m unittest discover -v
 $ python3 -m slowcrunch
 slowcrunch
 Type an expression or 'quit' to exit.
-Commands: :clear, :delete, :format, :functions, :help, :history, :load, :new, :rename-session, :reset, :save, :saveas, :sessions, :status, :vars
+Commands: :angles, :clear, :delete, :format, :functions, :help, :history, :load, :new, :rename-session, :reset, :save, :saveas, :sessions, :status, :tolerance, :vars
 >> 2 + 3 * 4
 14.0
 >> 10k + 25
@@ -82,6 +84,16 @@ Commands: :clear, :delete, :format, :functions, :help, :history, :load, :new, :r
 4830.0
 >> 45min
 2700.0
+>> values = [1, 2 + 3, sqrt(16)]
+[1.0, 5.0, 4.0]
+>> values
+[1.0, 5.0, 4.0]
+>> len(values)
+3.0
+>> sum(values)
+10.0
+>> mean(values)
+3.3333333333333335
 >> radius = 5
 5.0
 >> area(r) = pi * r ^ 2
@@ -96,7 +108,7 @@ radius = 5.0
 area(r)
 >> :help functions
 Help: functions
-Built-in functions include abs, sin, cos, tan, sqrt, and log.
+Supported built-in functions are grouped by category below.
 Define user functions with the form name(param1, param2) = expression.
 >> sqrt(-1)
 i
@@ -105,7 +117,31 @@ i
 >> conj(2 + 3i)
 2.0 - 3.0i
 >> arg(i)
-1.5707963267948966
+90deg
+>> :angles rad
+Angle format set to rad.
+>> 2pi
+6.28318530718rad
+>> 360deg
+6.28318530718rad
+>> :angles dms
+Angle format set to dms.
+>> 90deg / 2
+45deg 0' 0"
+>> asin(1)
+90deg 0' 0"
+>> atan2(1, 1)
+45deg 0' 0"
+>> cot(45deg)
+1.0
+>> log10(1000)
+3.0
+>> deg(pi / 2)
+90.0
+>> dms(pi / 6)
+30deg 0' 0"
+>> hms(1h20m30s)
+1h 20m 30s
 >> :format si
 Output format set to si.
 >> 10000
@@ -116,6 +152,12 @@ Output format set to si.
 Output format set to engineering.
 >> 12000
 12e3
+>> sin(360deg)
+-2.4492935982947064e-16
+>> :tolerance 1e-12
+Zero tolerance set to 1e-12.
+>> sin(360deg)
+0.0
 >> :history area
 3: area(r) = pi * r ^ 2 = Defined area(r)
 4: area(radius) = 78.53981633974483
@@ -129,6 +171,8 @@ Session: demo
 Saved at: 2026-07-20T12:34:56+02:00
 Modified: no
 Format: engineering
+Angles: dms
+Zero tolerance: 1e-12
 User variables: 1
 User functions: 1
 History entries: 8
@@ -186,6 +230,7 @@ Examples:
 :save demo
 :sessions
 :load demo
+:tolerance 1e-12
 ```
 
 If `:save` is called without a name, slowcrunch generates one from the current local date and time.
@@ -198,6 +243,8 @@ Use these commands to manage the current interactive session:
 :clear
 :new
 :status
+:tolerance
+:tolerance 1e-12
 :reset
 :saveas demo
 :rename-session geometry
@@ -208,7 +255,8 @@ Use these commands to manage the current interactive session:
 
 `:clear` only clears the screen.  
 `:new` starts a fresh unnamed session.  
-`:status` prints the current session name, last save time, dirty state, and counts.  
+`:status` prints the current session name, last save time, dirty state, format settings, zero tolerance, and counts.  
+`:tolerance` shows or changes the near-zero normalization threshold.  
 `:reset` clears the in-memory session state.  
 `:delete` removes an explicit target and never guesses what should be deleted.
 
@@ -282,6 +330,66 @@ Use `:format` to control numeric output rendering:
 `scientific` uses `mantissa e exponent`, such as `1.2e6`.  
 `engineering` keeps exponents in steps of three, such as `12e3`.  
 `si` uses engineering steps with SI prefixes, such as `12k` or `220u`.
+
+Use `:angles` to control how angle-typed results are rendered:
+
+```text
+:angles
+:angles deg
+:angles dms
+:angles rad
+```
+
+`deg` renders decimal degrees such as `45deg`.  
+`dms` renders degrees, minutes, and seconds such as `45deg 0' 0"`.  
+`rad` renders radians with a `rad` suffix such as `6.28318530718rad`.
+
+Use `:tolerance` to control when very small numeric results are normalized to zero:
+
+```text
+:tolerance
+:tolerance 1e-12
+```
+
+With a tolerance of `1e-12`, values such as `-2.4492935982947064e-16` are rendered and stored as `0.0`.
+
+If you want a compact angle-typed multiple of `pi`, write `2pi` or `0.5pi`.  
+If you want `2*pi` to stay angle-typed and follow `:angles`, write `360deg` or `2 * 180deg`.  
+If you only need the numeric radian value, write `2 * pi`. `pi` is a built-in constant and radians are the internal angle unit.
+
+Use explicit helper functions when you want angle or duration output instead of raw radians or seconds:
+
+```text
+deg(pi / 2)   = 90.0
+dms(pi / 6)   = 30deg 0' 0"
+hms(4830)     = 1h 20m 30s
+```
+
+## Supported Functions
+
+slowcrunch currently includes these built-in function groups:
+
+- Trigonometric: `sin`, `cos`, `tan`, `cot`, `sec`, `csc`
+- Inverse trigonometric: `asin`, `acos`, `atan`, `atan2`, `acot`, `asec`, `acsc`, `arg`
+- Hyperbolic: `sinh`, `cosh`, `tanh`, `coth`, `sech`, `csch`
+- Inverse hyperbolic: `asinh`, `acosh`, `atanh`
+- Exponential and logarithmic: `exp`, `ln`, `log`, `log10`, `log2`, `sqrt`
+- Complex and utility: `abs`, `floor`, `ceil`, `re`, `im`, `conj`
+- Statistics: `len`, `sum`, `min`, `max`, `mean`
+- Formatting helpers: `deg`, `dms`, `hms`
+
+Inverse trigonometric functions and `arg` return angle-typed results, so they follow the active `:angles` mode.
+Statistics functions currently use list arguments such as `[1, 2, 3]`.
+
+## Lists
+
+slowcrunch supports list literals as a basic collection type:
+
+- `[1, 2, 3]`
+- `values = [1, 2 + 3, sqrt(16)]`
+
+Lists can be assigned to variables, shown in the REPL, and saved in sessions.
+Arithmetic operators on lists are intentionally not supported yet.
 
 ## Multi-Statement Input
 

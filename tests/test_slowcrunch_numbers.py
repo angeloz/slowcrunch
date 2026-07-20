@@ -1,7 +1,14 @@
 import math
 import unittest
 
-from slowcrunch.runtime.numbers import format_value, parse_number_literal
+from slowcrunch.runtime.numbers import (
+    format_angle_degrees,
+    format_angle_dms,
+    format_duration_hms,
+    format_value,
+    parse_number_literal,
+    to_degrees,
+)
 
 
 class SlowCrunchNumbersTest(unittest.TestCase):
@@ -38,6 +45,9 @@ class SlowCrunchNumbersTest(unittest.TestCase):
     def test_parse_hour_literal(self):
         self.assertEqual(parse_number_literal("1h"), 3600.0)
 
+    def test_convert_radians_to_degrees(self):
+        self.assertEqual(to_degrees(math.pi / 2), 90.0)
+
     def test_format_plain_value(self):
         self.assertEqual(format_value(10000.0), "10000.0")
 
@@ -58,6 +68,33 @@ class SlowCrunchNumbersTest(unittest.TestCase):
 
     def test_format_complex_si_value(self):
         self.assertEqual(format_value(2e-6j, "si"), "2ui")
+
+    def test_format_text_value_is_mode_independent(self):
+        self.assertEqual(format_value("Defined area(r)", "si"), "Defined area(r)")
+
+    def test_format_list_value(self):
+        self.assertEqual(format_value([1.0, 2e-6j, 3.5], "si"), "[1, 2ui, 3.5]")
+
+    def test_format_angle_dms_value(self):
+        self.assertEqual(format_angle_dms(math.pi / 6), '30deg 0\' 0"')
+
+    def test_format_angle_degrees_value(self):
+        self.assertEqual(format_angle_degrees(math.pi / 2), "90deg")
+
+    def test_format_duration_hms_value(self):
+        self.assertEqual(format_duration_hms(4830.0), "1h 20m 30s")
+
+    def test_format_angle_value_with_kind(self):
+        self.assertEqual(format_value(math.pi / 2, "plain", "angle"), "90deg")
+
+    def test_format_angle_value_with_dms_mode(self):
+        self.assertEqual(format_value(math.pi / 6, "plain", "angle", "dms"), '30deg 0\' 0"')
+
+    def test_format_angle_value_with_rad_mode(self):
+        self.assertEqual(format_value(math.pi / 2, "plain", "angle", "rad"), "1.57079632679rad")
+
+    def test_format_duration_value_with_kind(self):
+        self.assertEqual(format_value(19833.0, "plain", "duration"), "5h 30m 33s")
 
 
 if __name__ == "__main__":

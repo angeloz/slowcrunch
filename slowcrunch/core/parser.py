@@ -3,6 +3,7 @@ from slowcrunch.core.ast import (
     BinaryOpNode,
     CallNode,
     FunctionDefNode,
+    ListNode,
     NameNode,
     NumberNode,
     ProgramNode,
@@ -142,6 +143,14 @@ class Parser:
             self.advance()
             return NumberNode(float(token.value))
 
+        if token.kind == "DURATION_NUMBER":
+            self.advance()
+            return NumberNode(float(token.value), "duration")
+
+        if token.kind == "ANGLE_NUMBER":
+            self.advance()
+            return NumberNode(float(token.value), "angle")
+
         if token.kind == "IMAG_NUMBER":
             self.advance()
             return NumberNode(complex(0.0, float(token.value)))
@@ -164,6 +173,22 @@ class Parser:
                     raise ParseError("Missing closing parenthesis in function call.")
                 return CallNode(name, arguments)
             return NameNode(name)
+
+        if self.match("LBRACKET"):
+            items = []
+            self.skip_newlines()
+            if self.current().kind != "RBRACKET":
+                while True:
+                    items.append(self.parse_expression())
+                    self.skip_newlines()
+                    if not self.match("COMMA"):
+                        break
+                    self.skip_newlines()
+            if not self.match("RBRACKET"):
+                if self.current().kind == "EOF":
+                    raise IncompleteInputError("Missing closing bracket in list literal.")
+                raise ParseError("Missing closing bracket in list literal.")
+            return ListNode(items)
 
         if self.match("LPAREN"):
             self.skip_newlines()

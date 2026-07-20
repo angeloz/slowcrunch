@@ -1,11 +1,19 @@
-from slowcrunch.core.ast import BinaryOpNode, CallNode, NameNode, NumberNode, UnaryOpNode
+from slowcrunch.core.ast import BinaryOpNode, CallNode, ListNode, NameNode, NumberNode, UnaryOpNode
 
 
 def encode_node(node):
     if isinstance(node, NumberNode):
-        return {"type": "number", "value": node.value}
+        encoded = {"type": "number", "value": node.value}
+        if node.value_kind is not None:
+            encoded["value_kind"] = node.value_kind
+        return encoded
     if isinstance(node, NameNode):
         return {"type": "name", "name": node.name}
+    if isinstance(node, ListNode):
+        return {
+            "type": "list",
+            "items": [encode_node(item) for item in node.items],
+        }
     if isinstance(node, UnaryOpNode):
         return {
             "type": "unary",
@@ -32,9 +40,11 @@ def decode_node(data):
     node_type = data["type"]
 
     if node_type == "number":
-        return NumberNode(data["value"])
+        return NumberNode(data["value"], data.get("value_kind"))
     if node_type == "name":
         return NameNode(data["name"])
+    if node_type == "list":
+        return ListNode([decode_node(item) for item in data["items"]])
     if node_type == "unary":
         return UnaryOpNode(data["operator"], decode_node(data["operand"]))
     if node_type == "binary":

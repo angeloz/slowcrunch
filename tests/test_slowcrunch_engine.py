@@ -31,6 +31,55 @@ class SlowCrunchEngineTest(unittest.TestCase):
         result, _ = evaluate_expression("1.2e6 + 3")
         self.assertEqual(result, 1200003.0)
 
+    def test_list_literal(self):
+        result, _ = evaluate_expression("[1, 2, 4, 5]")
+        self.assertEqual(result, [1.0, 2.0, 4.0, 5.0])
+
+    def test_empty_list_literal(self):
+        result, _ = evaluate_expression("[]")
+        self.assertEqual(result, [])
+
+    def test_list_assignment_and_reuse(self):
+        context = EvaluationContext()
+        result, context = evaluate_expression("values = [1, 2 + 3, sqrt(16)]", context)
+        self.assertEqual(result, [1.0, 5.0, 4.0])
+        self.assertEqual(context.get_variable("values"), [1.0, 5.0, 4.0])
+
+    def test_list_statistics_functions(self):
+        result, _ = evaluate_expression("len([1, 2, 4, 5]) + sum([1, 2, 4, 5]) + min([1, 2, 4, 5]) + max([1, 2, 4, 5])")
+        self.assertEqual(result, 22.0)
+        result, _ = evaluate_expression("mean([1, 2, 4, 5])")
+        self.assertEqual(result, 3.0)
+
+    def test_list_sum_accepts_empty_list(self):
+        result, _ = evaluate_expression("sum([])")
+        self.assertEqual(result, 0.0)
+
+    def test_list_statistics_reject_non_list_arguments(self):
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("mean(3)")
+        self.assertEqual(str(error.exception), "Function 'mean' expects a list argument.")
+
+    def test_list_statistics_reject_empty_list_when_required(self):
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("mean([])")
+        self.assertEqual(str(error.exception), "Function 'mean' does not accept an empty list.")
+
+    def test_list_statistics_reject_non_real_elements(self):
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("sum([1, 2i])")
+        self.assertEqual(str(error.exception), "Function 'sum' expects a list of real numbers.")
+
+    def test_list_values_do_not_support_arithmetic_operators(self):
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("[1, 2] + [3, 4]")
+        self.assertEqual(str(error.exception), "List values do not support arithmetic operators yet.")
+
+    def test_unary_operators_do_not_support_list_values(self):
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("-[1, 2]")
+        self.assertEqual(str(error.exception), "Unary operators do not support list values.")
+
     def test_si_prefix_literal(self):
         result, _ = evaluate_expression("10k + 25")
         self.assertEqual(result, 10025.0)
@@ -47,6 +96,18 @@ class SlowCrunchEngineTest(unittest.TestCase):
         result, _ = evaluate_expression("sin(90deg)")
         self.assertTrue(math.isclose(result, 1.0))
 
+    def test_inverse_sine_returns_angle(self):
+        context = EvaluationContext()
+        result, context = evaluate_expression("asin(1)", context)
+        self.assertTrue(math.isclose(result, math.pi / 2))
+        self.assertEqual(context.entries[-1]["kind"], "angle")
+
+    def test_atan2_returns_angle(self):
+        context = EvaluationContext()
+        result, context = evaluate_expression("atan2(1, 1)", context)
+        self.assertTrue(math.isclose(result, math.pi / 4))
+        self.assertEqual(context.entries[-1]["kind"], "angle")
+
     def test_radian_literal_is_used_directly(self):
         result, _ = evaluate_expression("sin(1.5707963267948966rad)")
         self.assertTrue(math.isclose(result, 1.0))
@@ -54,6 +115,31 @@ class SlowCrunchEngineTest(unittest.TestCase):
     def test_milliradian_literal_supports_si_prefix(self):
         result, _ = evaluate_expression("2mrad")
         self.assertEqual(result, 0.002)
+
+    def test_pi_multiple_literal_is_supported(self):
+        result, _ = evaluate_expression("2pi")
+        self.assertTrue(math.isclose(result, 2 * math.pi))
+
+    def test_pi_multiple_literal_preserves_angle_kind(self):
+        context = EvaluationContext()
+        result, context = evaluate_expression("0.5pi", context)
+        self.assertTrue(math.isclose(result, math.pi / 2))
+        self.assertEqual(context.entries[-1]["kind"], "angle")
+        self.assertEqual(context.get_variable_kind("ans"), "angle")
+
+    def test_angle_division_preserves_angle_kind(self):
+        context = EvaluationContext()
+        result, context = evaluate_expression("90deg / 2", context)
+        self.assertTrue(math.isclose(result, math.pi / 4))
+        self.assertEqual(context.entries[-1]["kind"], "angle")
+        self.assertEqual(context.get_variable_kind("ans"), "angle")
+
+    def test_angle_assignment_preserves_angle_kind(self):
+        context = EvaluationContext()
+        result, context = evaluate_expression("bearing = 45deg", context)
+        self.assertTrue(math.isclose(result, math.pi / 4))
+        self.assertTrue(math.isclose(context.get_variable("bearing"), math.pi / 4))
+        self.assertEqual(context.get_variable_kind("bearing"), "angle")
 
     def test_second_literal_represents_duration(self):
         result, _ = evaluate_expression("90s")
@@ -70,6 +156,20 @@ class SlowCrunchEngineTest(unittest.TestCase):
     def test_compound_duration_literal_without_spaces(self):
         result, _ = evaluate_expression("1h20m30s")
         self.assertEqual(result, 4830.0)
+
+    def test_duration_difference_preserves_duration_kind(self):
+        context = EvaluationContext()
+        result, context = evaluate_expression("12h 20m 12s - 6h 49m 39s", context)
+        self.assertEqual(result, 19833.0)
+        self.assertEqual(context.entries[-1]["kind"], "duration")
+        self.assertEqual(context.get_variable_kind("ans"), "duration")
+
+    def test_duration_assignment_preserves_duration_kind(self):
+        context = EvaluationContext()
+        result, context = evaluate_expression("work = 12h 20m 12s - 6h 49m 39s", context)
+        self.assertEqual(result, 19833.0)
+        self.assertEqual(context.get_variable("work"), 19833.0)
+        self.assertEqual(context.get_variable_kind("work"), "duration")
 
     def test_short_minute_alias_requires_duration_context(self):
         result, _ = evaluate_expression("20m")
@@ -110,6 +210,55 @@ class SlowCrunchEngineTest(unittest.TestCase):
     def test_complex_argument_function(self):
         result, _ = evaluate_expression("arg(i)")
         self.assertTrue(math.isclose(result, math.pi / 2))
+
+    def test_arg_function_preserves_angle_kind(self):
+        context = EvaluationContext()
+        result, context = evaluate_expression("arg(i)", context)
+        self.assertTrue(math.isclose(result, math.pi / 2))
+        self.assertEqual(context.entries[-1]["kind"], "angle")
+        self.assertEqual(context.get_variable_kind("ans"), "angle")
+
+    def test_degree_output_function(self):
+        result, _ = evaluate_expression("deg(pi / 2)")
+        self.assertEqual(result, 90.0)
+
+    def test_dms_output_function(self):
+        result, _ = evaluate_expression("dms(pi / 6)")
+        self.assertEqual(result, '30deg 0\' 0"')
+
+    def test_hms_output_function(self):
+        result, _ = evaluate_expression("hms(4830)")
+        self.assertEqual(result, "1h 20m 30s")
+
+    def test_reciprocal_trigonometric_functions(self):
+        result, _ = evaluate_expression("cot(45deg) + sec(60deg) + csc(30deg)")
+        self.assertTrue(math.isclose(result, 5.0))
+
+    def test_hyperbolic_functions(self):
+        result, _ = evaluate_expression("cosh(0) + sinh(0) + tanh(0)")
+        self.assertEqual(result, 1.0)
+
+    def test_exponential_and_logarithmic_functions(self):
+        result, _ = evaluate_expression("exp(2) - exp(2)")
+        self.assertEqual(result, 0.0)
+        result, _ = evaluate_expression("ln(e) + log10(1000) + log2(8)")
+        self.assertEqual(result, 7.0)
+
+    def test_floor_and_ceil_functions(self):
+        result, _ = evaluate_expression("floor(3.9) + ceil(3.1)")
+        self.assertEqual(result, 7.0)
+
+    def test_reciprocal_trigonometric_zero_division_is_reported(self):
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("cot(0)")
+        self.assertEqual(str(error.exception), "Division by zero is not allowed.")
+
+    def test_context_zero_tolerance_does_not_destroy_small_numeric_results(self):
+        context = EvaluationContext()
+        context.set_zero_tolerance(1e-12)
+        result, context = evaluate_expression("3f * 2", context)
+        self.assertTrue(math.isclose(result, 6e-15))
+        self.assertTrue(math.isclose(context.get_variable("ans"), 6e-15))
 
     def test_ans_is_reused(self):
         context = EvaluationContext()

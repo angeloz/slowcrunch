@@ -2,7 +2,9 @@ import math
 
 NUMERIC_TYPES = (int, float, complex)
 ZERO_TOLERANCE = 1e-30
+DEFAULT_SESSION_ZERO_TOLERANCE = 1e-12
 FORMAT_MODES = ("plain", "scientific", "engineering", "si")
+ANGLE_FORMAT_MODES = ("deg", "dms", "rad")
 ANGLE_INPUT_UNITS = {
     "deg": math.pi / 180.0,
     "rad": 1.0,
@@ -49,19 +51,19 @@ def is_numeric(value):
     return isinstance(value, NUMERIC_TYPES)
 
 
-def normalize_number(value):
+def normalize_number(value, zero_tolerance=ZERO_TOLERANCE):
     if isinstance(value, bool) or not is_numeric(value):
         return value
 
     if isinstance(value, complex):
-        real = 0.0 if abs(value.real) < ZERO_TOLERANCE else float(value.real)
-        imag = 0.0 if abs(value.imag) < ZERO_TOLERANCE else float(value.imag)
+        real = 0.0 if abs(value.real) < zero_tolerance else float(value.real)
+        imag = 0.0 if abs(value.imag) < zero_tolerance else float(value.imag)
         if imag == 0.0:
             return real
         return complex(real, imag)
 
     normalized = float(value)
-    if abs(normalized) < ZERO_TOLERANCE:
+    if abs(normalized) < zero_tolerance:
         return 0.0
     return normalized
 
@@ -75,7 +77,7 @@ def parse_number_literal(text):
             value = float(numeric_text)
         except ValueError:
             continue
-        return normalize_number(value * DURATION_INPUT_UNITS[duration_unit])
+        return normalize_number(value * DURATION_INPUT_UNITS[duration_unit], 0.0)
 
     unit = next((name for name in ANGLE_INPUT_UNITS if text.endswith(name)), "")
     raw_text = text[: -len(unit)] if unit else text
@@ -85,17 +87,105 @@ def parse_number_literal(text):
     value = float(numeric_text)
     multiplier = SI_INPUT_PREFIXES.get(suffix, 1.0)
     unit_multiplier = ANGLE_INPUT_UNITS.get(unit, 1.0)
-    return normalize_number(value * multiplier * unit_multiplier)
+    return normalize_number(value * multiplier * unit_multiplier, 0.0)
 
 
-def format_value(value, mode="plain"):
+def format_value(value, mode="plain", kind=None, angle_mode="deg", zero_tolerance=DEFAULT_SESSION_ZERO_TOLERANCE):
     if mode not in FORMAT_MODES:
         raise ValueError(f"Unknown format mode: {mode}")
+    if angle_mode not in ANGLE_FORMAT_MODES:
+        raise ValueError(f"Unknown angle format mode: {angle_mode}")
 
-    normalized = normalize_number(value)
+    normalized = normalize_number(value, zero_tolerance)
+    if isinstance(normalized, list):
+        formatted_items = [
+            format_value(item, mode, None, angle_mode, zero_tolerance)
+            for item in normalized
+        ]
+        return f"[{', '.join(formatted_items)}]"
+    if not is_numeric(normalized):
+        return str(normalized)
+    if kind == "angle":
+        return format_angle_value(normalized, angle_mode)
+    if kind == "duration":
+        return format_duration_hms(normalized)
     if isinstance(normalized, complex):
         return _format_complex(normalized, mode)
     return _format_real(normalized, mode)
+
+
+def to_degrees(value):
+    return normalize_number(math.degrees(value))
+
+
+def format_angle_degrees(value):
+    degrees = _rounded_display_number(to_degrees(value))
+    return f"{_compact_decimal(degrees)}deg"
+
+
+def format_angle_radians(value):
+    return f"{_compact_decimal(normalize_number(value))}rad"
+
+
+def format_angle_value(value, mode):
+    if mode == "deg":
+        return format_angle_degrees(value)
+    if mode == "dms":
+        return format_angle_dms(value)
+    if mode == "rad":
+        return format_angle_radians(value)
+    raise ValueError(f"Unknown angle format mode: {mode}")
+
+
+def format_angle_dms(value):
+    total_seconds = abs(math.degrees(value)) * 3600.0
+    degrees = int(total_seconds // 3600)
+    remaining_seconds = total_seconds - (degrees * 3600)
+    minutes = int(remaining_seconds // 60)
+    seconds = _rounded_display_number(remaining_seconds - (minutes * 60))
+
+    if seconds >= 60.0:
+        seconds = 0.0
+        minutes += 1
+    if minutes >= 60:
+        minutes = 0
+        degrees += 1
+
+    sign = "-" if value < 0 else ""
+    return f"{sign}{degrees}deg {minutes}' {_compact_decimal(seconds)}\""
+
+
+def format_duration_hms(value):
+    total_seconds = abs(float(value))
+    days = int(total_seconds // 86400)
+    total_seconds -= days * 86400
+    hours = int(total_seconds // 3600)
+    total_seconds -= hours * 3600
+    minutes = int(total_seconds // 60)
+    seconds = _rounded_display_number(total_seconds - (minutes * 60))
+
+    if seconds >= 60.0:
+        seconds = 0.0
+        minutes += 1
+    if minutes >= 60:
+        minutes = 0
+        hours += 1
+    if hours >= 24:
+        hours = 0
+        days += 1
+
+    parts = []
+    if days:
+        parts.append(f"{days}d")
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+    if seconds or not parts:
+        parts.append(f"{_compact_decimal(seconds)}s")
+
+    sign = "-" if value < 0 else ""
+    return sign + " ".join(parts)
 
 
 def _format_complex(value, mode):
@@ -157,3 +247,7 @@ def _engineering_exponent(value):
 
 def _compact_decimal(value):
     return f"{float(value):.12g}"
+
+
+def _rounded_display_number(value):
+    return normalize_number(float(_compact_decimal(value)))
