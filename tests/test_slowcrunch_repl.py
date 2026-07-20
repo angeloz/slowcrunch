@@ -1,7 +1,15 @@
 import unittest
 
+from slowcrunch.core.errors import SessionError
 from slowcrunch.runtime.context import EvaluationContext
-from slowcrunch.tui.repl import _completion_candidates, _help_lines, _requires_continuation
+from slowcrunch.tui.repl import (
+    SessionState,
+    _completion_candidates,
+    _ensure_clean_session,
+    _help_lines,
+    _requires_continuation,
+    _status_lines,
+)
 
 
 class SlowCrunchReplCompletionTest(unittest.TestCase):
@@ -40,6 +48,21 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         matches = _completion_candidates(context, ":f", ":f", 0)
         self.assertEqual(matches, [":functions"])
 
+    def test_new_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":ne", ":ne", 0)
+        self.assertEqual(matches, [":new"])
+
+    def test_rename_session_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":rename", ":rename", 0)
+        self.assertEqual(matches, [":rename-session"])
+
+    def test_status_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":st", ":st", 0)
+        self.assertEqual(matches, [":status"])
+
     def test_clear_command_is_completable(self):
         context = EvaluationContext()
         matches = _completion_candidates(context, ":cl", ":cl", 0)
@@ -53,12 +76,17 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
     def test_reset_command_is_completable(self):
         context = EvaluationContext()
         matches = _completion_candidates(context, ":re", ":re", 0)
-        self.assertEqual(matches, [":reset"])
+        self.assertIn(":reset", matches)
 
     def test_save_command_is_completable(self):
         context = EvaluationContext()
         matches = _completion_candidates(context, ":sa", ":sa", 0)
-        self.assertEqual(matches, [":save"])
+        self.assertIn(":save", matches)
+
+    def test_saveas_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":savea", ":savea", 0)
+        self.assertEqual(matches, [":saveas"])
 
     def test_sessions_command_is_completable(self):
         context = EvaluationContext()
@@ -130,12 +158,13 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
     def test_general_help_mentions_help_topics(self):
         lines = _help_lines()
         self.assertIn(
-            "Help topics: basics, clear, delete, functions, history, reset, sessions, vars",
+            "Help topics: basics, clear, delete, functions, history, new, reset, sessions, status, vars",
             lines,
         )
         self.assertIn("  :help delete", lines)
         self.assertIn("  :help functions", lines)
         self.assertIn("  :help sessions", lines)
+        self.assertIn("  :help status", lines)
 
     def test_clear_help_explains_screen_only_behavior(self):
         lines = _help_lines("clear")
@@ -158,6 +187,16 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         lines = _help_lines("reset")
         self.assertIn("Use :reset to clear the current in-memory session.", lines)
         self.assertIn("Saved session files are not deleted.", lines)
+        self.assertIn("use :reset --force or save first.", " ".join(lines).lower())
+
+    def test_new_help_mentions_force_for_unsaved_changes(self):
+        lines = _help_lines("new")
+        self.assertIn("Use :new to start a fresh empty session.", lines)
+        self.assertIn("use :new --force or save first.", " ".join(lines).lower())
+
+    def test_status_help_mentions_dirty_state(self):
+        lines = _help_lines("status")
+        self.assertIn("The status includes the active session name, last save time, dirty state, and object counts.", lines)
 
     def test_vars_help_explains_assignment_syntax(self):
         lines = _help_lines("vars")
@@ -169,13 +208,46 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertEqual(lines[0], "Unknown help topic 'unknown'.")
         self.assertEqual(
             lines[1],
-            "Available topics: basics, clear, delete, functions, history, reset, sessions, vars",
+            "Available topics: basics, clear, delete, functions, history, new, reset, sessions, status, vars",
         )
 
     def test_sessions_help_explains_save_and_load(self):
         lines = _help_lines("sessions")
         self.assertIn("Use :save [name] to store the current session as JSON.", lines)
+        self.assertIn("Use :saveas name to save under a new explicit name.", lines)
+        self.assertIn("Use :status to inspect the current session state.", lines)
+        self.assertIn("Use :rename-session name to rename the current saved session on disk.", lines)
         self.assertIn("  :load demo", lines)
+
+    def test_status_lines_for_unsaved_session(self):
+        context = EvaluationContext()
+        lines = _status_lines(context, SessionState())
+        self.assertEqual(lines[0], "Session: <unsaved>")
+        self.assertEqual(lines[1], "Saved at: never")
+        self.assertEqual(lines[2], "Modified: no")
+
+    def test_status_lines_for_saved_dirty_session(self):
+        context = EvaluationContext()
+        context.set_variable("radius", 5.0)
+        context.set_function("area", ["r"], None)
+        state = SessionState("demo", "2026-07-20T13:00:00+02:00", True)
+        lines = _status_lines(context, state)
+        self.assertEqual(lines[0], "Session: demo")
+        self.assertEqual(lines[1], "Saved at: 2026-07-20T13:00:00+02:00")
+        self.assertEqual(lines[2], "Modified: yes")
+        self.assertEqual(lines[3], "User variables: 1")
+        self.assertEqual(lines[4], "User functions: 1")
+
+    def test_ensure_clean_session_raises_when_dirty(self):
+        with self.assertRaises(SessionError) as error:
+            _ensure_clean_session(SessionState("demo", None, True), ":load", False)
+        self.assertEqual(
+            str(error.exception),
+            "Current session has unsaved changes. Use :load --force or :save first.",
+        )
+
+    def test_ensure_clean_session_allows_force(self):
+        _ensure_clean_session(SessionState("demo", None, True), ":load", True)
 
 
 if __name__ == "__main__":

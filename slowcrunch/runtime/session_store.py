@@ -88,6 +88,27 @@ class SessionStore:
             raise SessionError(f"Unknown session: {session_name}")
         path.unlink()
 
+    def rename(self, old_name, new_name):
+        old_session_name = self._normalize_name(old_name)
+        new_session_name = self._normalize_name(new_name)
+        old_path = self._path_for(old_session_name)
+        new_path = self._path_for(new_session_name)
+
+        if not old_path.exists():
+            raise SessionError(f"Unknown session: {old_session_name}")
+        if new_path.exists():
+            raise SessionError(f"Session already exists: {new_session_name}")
+
+        try:
+            data = json.loads(old_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise SessionError(f"Session file is not valid JSON: {old_path.name}") from error
+
+        data["name"] = new_session_name
+        new_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+        old_path.unlink()
+        return SessionInfo(new_session_name, data["saved_at"], new_path)
+
     def _serialize_context(self, context, name, saved_at):
         return {
             "version": SESSION_VERSION,

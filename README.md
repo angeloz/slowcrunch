@@ -22,7 +22,7 @@ The project currently provides a small REPL-based TUI with:
 - `ans` for the last result
 - user variable assignment such as `x = 2 * 5`
 - user-defined functions such as `area(r) = pi * r ^ 2`
-- `:clear`, `:delete`, `:functions`, `:history`, `:help`, `:load`, `:reset`, `:save`, `:sessions`, and `:vars` commands
+- `:clear`, `:delete`, `:functions`, `:history`, `:help`, `:load`, `:new`, `:rename-session`, `:reset`, `:save`, `:saveas`, `:sessions`, `:status`, and `:vars` commands
 - topic help such as `:help functions` and `:help vars`
 - named or timestamped session save/load
 - multi-statement programs separated by newline or `;`
@@ -60,7 +60,7 @@ python3 -m unittest discover -v
 $ python3 -m slowcrunch
 slowcrunch
 Type an expression or 'quit' to exit.
-Commands: :clear, :delete, :functions, :help, :history, :load, :reset, :save, :sessions, :vars
+Commands: :clear, :delete, :functions, :help, :history, :load, :new, :rename-session, :reset, :save, :saveas, :sessions, :status, :vars
 >> 2 + 3 * 4
 14.0
 >> radius = 5
@@ -81,10 +81,20 @@ Built-in functions include abs, sin, cos, tan, sqrt, and log.
 Define user functions with the form name(param1, param2) = expression.
 >> :save demo
 Saved session 'demo' at 2026-07-20T12:34:56+02:00
+>> :status
+Session: demo
+Saved at: 2026-07-20T12:34:56+02:00
+Modified: no
+User variables: 1
+User functions: 1
+History entries: 5
+Numeric results: 3
 >> :sessions
 demo  2026-07-20T12:34:56+02:00
 >> :load demo
 Loaded session 'demo' from 2026-07-20T12:34:56+02:00
+>> :rename-session geometry
+Renamed session to 'geometry'.
 >> :delete function area
 Deleted function 'area'.
 >> :reset
@@ -140,13 +150,19 @@ Use these commands to manage the current interactive session:
 
 ```text
 :clear
+:new
+:status
 :reset
+:saveas demo
+:rename-session geometry
 :delete var radius
 :delete function area
 :delete session demo
 ```
 
 `:clear` only clears the screen.  
+`:new` starts a fresh unnamed session.  
+`:status` prints the current session name, last save time, dirty state, and counts.  
 `:reset` clears the in-memory session state.  
 `:delete` removes an explicit target and never guesses what should be deleted.
 

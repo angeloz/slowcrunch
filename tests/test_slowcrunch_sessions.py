@@ -65,6 +65,35 @@ class SlowCrunchSessionStoreTest(unittest.TestCase):
             store.delete("demo")
             self.assertEqual(store.session_names(), [])
 
+    def test_rename_saved_session_updates_name(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            _, context = evaluate_expression("2 + 2")
+            store.save(context, "demo")
+            session = store.rename("demo", "renamed")
+            self.assertEqual(session.name, "renamed")
+            self.assertEqual(store.session_names(), ["renamed"])
+            loaded_context, loaded_session = store.load("renamed")
+            self.assertEqual(loaded_session.name, "renamed")
+            self.assertEqual(loaded_context.entries[0]["expression"], "2 + 2")
+
+    def test_rename_unknown_session_raises_error(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            with self.assertRaises(SessionError) as context:
+                store.rename("missing", "renamed")
+            self.assertEqual(str(context.exception), "Unknown session: missing")
+
+    def test_rename_to_existing_session_raises_error(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            _, context = evaluate_expression("2 + 2")
+            store.save(context, "alpha")
+            store.save(context, "beta")
+            with self.assertRaises(SessionError) as error:
+                store.rename("alpha", "beta")
+            self.assertEqual(str(error.exception), "Session already exists: beta")
+
     def test_delete_unknown_session_raises_error(self):
         with tempfile.TemporaryDirectory() as tempdir:
             store = SessionStore(tempdir)

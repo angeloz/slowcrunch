@@ -1,4 +1,5 @@
 import shlex
+from dataclasses import dataclass
 
 try:
     import readline
@@ -17,14 +18,25 @@ REPL_COMMANDS = (
     ":help",
     ":history",
     ":load",
+    ":new",
+    ":rename-session",
     ":reset",
     ":save",
+    ":saveas",
     ":sessions",
+    ":status",
     ":vars",
 )
 REPL_KEYWORDS = ("exit", "quit")
-HELP_TOPICS = ("basics", "clear", "delete", "functions", "history", "reset", "sessions", "vars")
+HELP_TOPICS = ("basics", "clear", "delete", "functions", "history", "new", "reset", "sessions", "status", "vars")
 DELETE_TARGETS = ("function", "session", "var")
+
+
+@dataclass
+class SessionState:
+    current_name: str | None = None
+    last_saved_at: str | None = None
+    dirty: bool = False
 
 
 def _completion_candidates(context, text, line_buffer="", begidx=0, session_names=None):
@@ -124,6 +136,26 @@ def _print_sessions(session_store):
         print(f"{session.name}  {session.saved_at}")
 
 
+def _status_lines(context, session_state):
+    session_name = session_state.current_name or "<unsaved>"
+    saved_at = session_state.last_saved_at or "never"
+    modified = "yes" if session_state.dirty else "no"
+    return [
+        f"Session: {session_name}",
+        f"Saved at: {saved_at}",
+        f"Modified: {modified}",
+        f"User variables: {len(context.user_variables())}",
+        f"User functions: {len(context.user_functions())}",
+        f"History entries: {len(context.entries)}",
+        f"Numeric results: {len(context.history)}",
+    ]
+
+
+def _print_status(context, session_state):
+    for line in _status_lines(context, session_state):
+        print(line)
+
+
 def _help_lines(topic=None):
     if topic is None:
         return [
@@ -134,16 +166,21 @@ def _help_lines(topic=None):
             ":help [topic] Show general help or help for a topic.",
             ":history Show evaluated expressions and results.",
             ":load NAME Load a saved session.",
+            ":new      Start a new empty session.",
+            ":rename-session NAME Rename the current saved session.",
             ":reset    Reset the current in-memory session.",
             ":save [NAME] Save the current session.",
+            ":saveas NAME Save the current session under a new name.",
             ":sessions List saved sessions.",
+            ":status   Show the current session state.",
             ":vars    Show user-defined variables.",
             "quit     Exit the application.",
             "exit     Exit the application.",
-            "Help topics: basics, clear, delete, functions, history, reset, sessions, vars",
+            "Help topics: basics, clear, delete, functions, history, new, reset, sessions, status, vars",
             "Examples:",
             "  :help delete",
             "  :help functions",
+            "  :help status",
             "  :help sessions",
             "  :help vars",
             "  2 + 3 * 4",
@@ -205,6 +242,16 @@ def _help_lines(topic=None):
             "  :history",
         ]
 
+    if topic == "new":
+        return [
+            "Help: new",
+            "Use :new to start a fresh empty session.",
+            "If the current session has unsaved changes, use :new --force or save first.",
+            "A new session starts unnamed and not modified.",
+            "Example:",
+            "  :new",
+        ]
+
     if topic == "delete":
         return [
             "Help: delete",
@@ -222,6 +269,7 @@ def _help_lines(topic=None):
             "Use :reset to clear the current in-memory session.",
             "This removes user variables, user-defined functions, ans history, and recorded entries.",
             "Saved session files are not deleted.",
+            "If the current session has unsaved changes, use :reset --force or save first.",
             "Example:",
             "  :reset",
         ]
@@ -243,20 +291,36 @@ def _help_lines(topic=None):
         return [
             "Help: sessions",
             "Use :save [name] to store the current session as JSON.",
+            "Use :saveas name to save under a new explicit name.",
             "If no name is provided, slowcrunch generates one from the current date and time.",
             "Use :sessions to list available saved sessions.",
+            "Use :status to inspect the current session state.",
             "Use :load name to replace the current session with a saved one.",
+            "Use :rename-session name to rename the current saved session on disk.",
             "Session files are stored in .slowcrunch-sessions by default.",
             "Examples:",
+            "  :status",
+            "  :saveas demo",
             "  :save",
             "  :save demo",
             "  :sessions",
             "  :load demo",
         ]
 
+    if topic == "status":
+        return [
+            "Help: status",
+            "Use :status to inspect the current session.",
+            "The status includes the active session name, last save time, dirty state, and object counts.",
+            "Examples:",
+            "  :status",
+            "  :save demo",
+            "  :status",
+        ]
+
     return [
         f"Unknown help topic '{topic}'.",
-        "Available topics: basics, clear, delete, functions, history, reset, sessions, vars",
+        "Available topics: basics, clear, delete, functions, history, new, reset, sessions, status, vars",
     ]
 
 
@@ -284,6 +348,33 @@ def _requires_continuation(text):
     except SlowCrunchError:
         return False
     return False
+
+
+def _command_force_requested(arguments):
+    return "--force" in arguments
+
+
+def _command_arguments(arguments):
+    return [argument for argument in arguments if argument != "--force"]
+
+
+def _ensure_clean_session(session_state, action, force_requested):
+    if session_state.dirty and not force_requested:
+        raise SessionError(f"Current session has unsaved changes. Use {action} --force or :save first.")
+
+
+def _mark_session_saved(session_state, session):
+    session_state.current_name = session.name
+    session_state.last_saved_at = session.saved_at
+    session_state.dirty = False
+
+
+def _mark_session_dirty(session_state):
+    session_state.dirty = True
+
+
+def _start_new_session():
+    return EvaluationContext(), SessionState()
 
 
 def _read_statement():
@@ -321,12 +412,16 @@ def _read_statement():
 
 def run_repl(session_store=None):
     context = EvaluationContext()
+    session_state = SessionState()
     session_store = session_store or SessionStore()
     _configure_readline(context, session_store)
 
     print("slowcrunch")
     print("Type an expression or 'quit' to exit.")
-    print("Commands: :clear, :delete, :functions, :help, :history, :load, :reset, :save, :sessions, :vars")
+    print(
+        "Commands: :clear, :delete, :functions, :help, :history, :load, "
+        ":new, :rename-session, :reset, :save, :saveas, :sessions, :status, :vars"
+    )
 
     while True:
         try:
@@ -361,6 +456,12 @@ def run_repl(session_store=None):
                     _print_functions(context)
                     continue
 
+                if command == ":status":
+                    if len(parts) != 1:
+                        raise SessionError("Usage: :status")
+                    _print_status(context, session_state)
+                    continue
+
                 if command == ":clear":
                     if len(parts) != 1:
                         raise SessionError("Usage: :clear")
@@ -382,25 +483,68 @@ def run_repl(session_store=None):
                 if command == ":save":
                     if len(parts) > 2:
                         raise SessionError("Usage: :save [name]")
-                    name = parts[1] if len(parts) == 2 else None
+                    name = parts[1] if len(parts) == 2 else session_state.current_name
                     session = session_store.save(context, name)
+                    _mark_session_saved(session_state, session)
                     print(f"Saved session '{session.name}' at {session.saved_at}")
                     continue
 
+                if command == ":saveas":
+                    if len(parts) != 2:
+                        raise SessionError("Usage: :saveas name")
+                    session = session_store.save(context, parts[1])
+                    _mark_session_saved(session_state, session)
+                    print(f"Saved session '{session.name}' at {session.saved_at}")
+                    continue
+
+                if command == ":new":
+                    force_requested = _command_force_requested(parts[1:])
+                    arguments = _command_arguments(parts[1:])
+                    if arguments:
+                        raise SessionError("Usage: :new [--force]")
+                    _ensure_clean_session(session_state, ":new", force_requested)
+                    context, session_state = _start_new_session()
+                    _configure_readline(context, session_store)
+                    print("Started a new session.")
+                    continue
+
                 if command == ":reset":
-                    if len(parts) != 1:
-                        raise SessionError("Usage: :reset")
+                    force_requested = _command_force_requested(parts[1:])
+                    arguments = _command_arguments(parts[1:])
+                    if arguments:
+                        raise SessionError("Usage: :reset [--force]")
+                    _ensure_clean_session(session_state, ":reset", force_requested)
                     context.reset_user_state()
+                    if session_state.current_name is not None:
+                        _mark_session_dirty(session_state)
+                    else:
+                        session_state.dirty = False
                     _configure_readline(context, session_store)
                     print("Current session reset.")
                     continue
 
                 if command == ":load":
-                    if len(parts) != 2:
-                        raise SessionError("Usage: :load name")
-                    context, session = session_store.load(parts[1])
+                    force_requested = _command_force_requested(parts[1:])
+                    arguments = _command_arguments(parts[1:])
+                    if len(arguments) != 1:
+                        raise SessionError("Usage: :load name [--force]")
+                    _ensure_clean_session(session_state, ":load", force_requested)
+                    context, session = session_store.load(arguments[0])
+                    _mark_session_saved(session_state, session)
                     _configure_readline(context, session_store)
                     print(f"Loaded session '{session.name}' from {session.saved_at}")
+                    continue
+
+                if command == ":rename-session":
+                    if len(parts) != 2:
+                        raise SessionError("Usage: :rename-session name")
+                    if session_state.current_name is None:
+                        raise SessionError("No active saved session to rename.")
+                    if session_state.dirty:
+                        raise SessionError("Save changes before renaming the current session.")
+                    session = session_store.rename(session_state.current_name, parts[1])
+                    _mark_session_saved(session_state, session)
+                    print(f"Renamed session to '{session.name}'.")
                     continue
 
                 if command == ":delete":
@@ -409,16 +553,22 @@ def run_repl(session_store=None):
                     target, name = parts[1], parts[2]
                     if target == "var":
                         context.delete_variable(name)
+                        _mark_session_dirty(session_state)
                         _configure_readline(context, session_store)
                         print(f"Deleted variable '{name}'.")
                         continue
                     if target == "function":
                         context.delete_function(name)
+                        _mark_session_dirty(session_state)
                         _configure_readline(context, session_store)
                         print(f"Deleted function '{name}'.")
                         continue
                     if target == "session":
                         session_store.delete(name)
+                        if session_state.current_name == name:
+                            session_state.current_name = None
+                            session_state.last_saved_at = None
+                            session_state.dirty = True
                         print(f"Deleted session '{name}'.")
                         continue
                     raise SessionError("Usage: :delete var|function|session name")
@@ -434,4 +584,5 @@ def run_repl(session_store=None):
             print(f"Error: {error}")
             continue
 
+        _mark_session_dirty(session_state)
         print(result)
