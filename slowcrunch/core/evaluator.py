@@ -7,6 +7,7 @@ from slowcrunch.core.ast import (
     FunctionDefNode,
     NameNode,
     NumberNode,
+    ProgramNode,
     UnaryOpNode,
 )
 from slowcrunch.core.errors import EvaluationError
@@ -19,6 +20,14 @@ class Evaluator:
         self.local_variables = local_variables or {}
 
     def evaluate(self, node):
+        if isinstance(node, ProgramNode):
+            result = None
+            for statement in node.statements:
+                result = self.evaluate(statement)
+                if isinstance(result, (int, float)):
+                    self.context.set_ans(result)
+            return result
+
         if isinstance(node, AssignNode):
             value = self.evaluate(node.value)
             self.context.set_variable(node.name, value)

@@ -25,6 +25,7 @@ The project currently provides a small REPL-based TUI with:
 - `:clear`, `:delete`, `:functions`, `:history`, `:help`, `:load`, `:reset`, `:save`, `:sessions`, and `:vars` commands
 - topic help such as `:help functions` and `:help vars`
 - named or timestamped session save/load
+- multi-statement programs separated by newline or `;`
 - keyboard history support through `readline` when available
 
 This is an early foundation, not yet a full SpeedCrunch-compatible clone.
@@ -90,6 +91,10 @@ Deleted function 'area'.
 Current session reset.
 >> :history
 No history yet.
+>> radius = 5;
+.. area(r) = pi * r ^ 2;
+.. area(radius)
+78.53981633974483
 ```
 
 ## Design Direction
@@ -141,6 +146,23 @@ Use these commands to manage the current interactive session:
 :delete session demo
 ```
 
-` :clear` only clears the screen.  
-` :reset` clears the in-memory session state.  
-` :delete` removes an explicit target and never guesses what should be deleted.
+`:clear` only clears the screen.  
+`:reset` clears the in-memory session state.  
+`:delete` removes an explicit target and never guesses what should be deleted.
+
+## Multi-Statement Input
+
+slowcrunch can evaluate a small line-based program instead of a single statement.
+
+- Separate statements with a newline or `;`
+- The result of the block is the result of the last statement
+- In the REPL, a trailing `;` keeps the input open and switches to the `.. ` continuation prompt
+
+Example:
+
+```text
+>> radius = 5;
+.. area(r) = pi * r ^ 2;
+.. area(radius)
+78.53981633974483
+```

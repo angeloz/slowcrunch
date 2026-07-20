@@ -1,7 +1,7 @@
 import unittest
 
 from slowcrunch.runtime.context import EvaluationContext
-from slowcrunch.tui.repl import _completion_candidates, _help_lines
+from slowcrunch.tui.repl import _completion_candidates, _help_lines, _requires_continuation
 
 
 class SlowCrunchReplCompletionTest(unittest.TestCase):
@@ -20,6 +20,15 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         context = EvaluationContext()
         matches = _completion_candidates(context, "q")
         self.assertEqual(matches, ["quit"])
+
+    def test_requires_continuation_for_trailing_semicolon(self):
+        self.assertTrue(_requires_continuation("radius = 5;"))
+
+    def test_requires_continuation_for_open_parenthesis(self):
+        self.assertTrue(_requires_continuation("(\n1 + 2"))
+
+    def test_complete_multiline_program_does_not_require_continuation(self):
+        self.assertFalse(_requires_continuation("radius = 5;\narea(r) = pi * r ^ 2;\narea(radius)"))
 
     def test_command_completion_filters_repl_commands(self):
         context = EvaluationContext()

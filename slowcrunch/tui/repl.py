@@ -5,8 +5,8 @@ try:
 except ImportError:  # pragma: no cover
     readline = None
 
-from slowcrunch.core.errors import SessionError, SlowCrunchError
-from slowcrunch.engine import evaluate_expression
+from slowcrunch.core.errors import IncompleteInputError, SessionError, SlowCrunchError
+from slowcrunch.engine import evaluate_expression, parse_input
 from slowcrunch.runtime.context import EvaluationContext
 from slowcrunch.runtime.session_store import SessionStore
 
@@ -157,10 +157,15 @@ def _help_lines(topic=None):
             "Enter expressions directly at the prompt.",
             "Supported operators: +, -, *, /, ^",
             "Use parentheses to group sub-expressions.",
+            "Use a trailing ';' to continue a multi-statement program on the next line.",
+            "The continuation prompt is '.. ' while additional input is expected.",
             "Built-in constants include pi and e.",
             "The ans variable stores the last numeric result.",
             "Examples:",
             "  2 + 3 * 4",
+            "  radius = 5;",
+            "  .. area(r) = pi * r ^ 2;",
+            "  .. area(radius)",
             "  (1 + 2) * 3",
             "  sqrt(9) + cos(0)",
         ]
@@ -271,6 +276,49 @@ def _parse_command(line):
         raise SessionError(f"Invalid command syntax: {error}") from error
 
 
+def _requires_continuation(text):
+    try:
+        parse_input(text)
+    except IncompleteInputError:
+        return True
+    except SlowCrunchError:
+        return False
+    return False
+
+
+def _read_statement():
+    lines = []
+
+    while True:
+        prompt = ">> " if not lines else ".. "
+
+        try:
+            line = input(prompt)
+        except EOFError:
+            print()
+            return None
+        except KeyboardInterrupt:
+            if lines:
+                print("\nCancelled multi-line input.")
+                return ""
+            raise
+
+        if not lines and not line.strip():
+            continue
+
+        if lines and line.lstrip().startswith(":"):
+            print("Error: commands are not available during multi-line input. Press Ctrl+C to cancel.")
+            continue
+
+        lines.append(line)
+        text = "\n".join(lines)
+
+        if _requires_continuation(text):
+            continue
+
+        return text
+
+
 def run_repl(session_store=None):
     context = EvaluationContext()
     session_store = session_store or SessionStore()
@@ -282,14 +330,17 @@ def run_repl(session_store=None):
 
     while True:
         try:
-            line = input(">> ").strip()
+            line = _read_statement()
         except EOFError:
-            print()
             break
         except KeyboardInterrupt:
             print("\nInterrupted.")
             break
 
+        if line is None:
+            break
+
+        line = line.strip()
         if not line:
             continue
 

@@ -5,9 +5,10 @@ from slowcrunch.core.ast import (
     FunctionDefNode,
     NameNode,
     NumberNode,
+    ProgramNode,
     UnaryOpNode,
 )
-from slowcrunch.core.errors import ParseError
+from slowcrunch.core.errors import IncompleteInputError, ParseError
 
 
 class Parser:
@@ -16,10 +17,35 @@ class Parser:
         self.index = 0
 
     def parse(self):
-        expression = self.parse_statement()
+        statements = self.parse_program()
         if self.current().kind != "EOF":
             raise ParseError(self._format_unexpected_token(self.current()))
-        return expression
+        return ProgramNode(statements)
+
+    def parse_program(self):
+        statements = []
+        self.skip_newlines()
+
+        if self.current().kind == "EOF":
+            raise IncompleteInputError("Unexpected end of expression.")
+
+        while self.current().kind != "EOF":
+            statements.append(self.parse_statement())
+
+            if self.current().kind == "SEMI":
+                self.advance()
+                self.skip_newlines()
+                if self.current().kind == "EOF":
+                    raise IncompleteInputError("Expected another statement after ';'.")
+                continue
+
+            if self.current().kind == "NEWLINE":
+                self.skip_newlines()
+                continue
+
+            break
+
+        return statements
 
     def parse_statement(self):
         if self._is_function_definition():
@@ -34,17 +60,26 @@ class Parser:
         name = self.advance().value
         self.advance()
         parameters = []
+        self.skip_newlines()
         if self.current().kind != "RPAREN":
             while True:
                 if self.current().kind != "IDENT":
                     raise ParseError("Expected a parameter name in function definition.")
                 parameters.append(self.advance().value)
+                self.skip_newlines()
                 if not self.match("COMMA"):
                     break
+                self.skip_newlines()
         if not self.match("RPAREN"):
+            if self.current().kind == "EOF":
+                raise IncompleteInputError("Missing closing parenthesis in function definition.")
             raise ParseError("Missing closing parenthesis in function definition.")
+        self.skip_newlines()
         if not self.match("ASSIGN"):
+            if self.current().kind == "EOF":
+                raise IncompleteInputError("Expected '=' after function definition.")
             raise ParseError("Expected '=' after function definition.")
+        self.skip_newlines()
         return FunctionDefNode(name, parameters, self.parse_expression())
 
     def current(self):
@@ -68,9 +103,11 @@ class Parser:
         return token
 
     def parse_expression(self):
+        self.skip_newlines()
         node = self.parse_term()
         while self.current().kind == "OP" and self.current().value in {"+", "-"}:
             operator = self.advance().value
+            self.skip_newlines()
             node = BinaryOpNode(node, operator, self.parse_term())
         return node
 
@@ -78,6 +115,7 @@ class Parser:
         node = self.parse_power()
         while self.current().kind == "OP" and self.current().value in {"*", "/"}:
             operator = self.advance().value
+            self.skip_newlines()
             node = BinaryOpNode(node, operator, self.parse_power())
         return node
 
@@ -85,12 +123,15 @@ class Parser:
         node = self.parse_unary()
         if self.current().kind == "OP" and self.current().value == "^":
             operator = self.advance().value
+            self.skip_newlines()
             node = BinaryOpNode(node, operator, self.parse_power())
         return node
 
     def parse_unary(self):
+        self.skip_newlines()
         if self.current().kind == "OP" and self.current().value in {"+", "-"}:
             operator = self.advance().value
+            self.skip_newlines()
             return UnaryOpNode(operator, self.parse_unary())
         return self.parse_primary()
 
@@ -105,19 +146,28 @@ class Parser:
             name = self.advance().value
             if self.match("LPAREN"):
                 arguments = []
+                self.skip_newlines()
                 if self.current().kind != "RPAREN":
                     while True:
                         arguments.append(self.parse_expression())
+                        self.skip_newlines()
                         if not self.match("COMMA"):
                             break
+                        self.skip_newlines()
                 if not self.match("RPAREN"):
+                    if self.current().kind == "EOF":
+                        raise IncompleteInputError("Missing closing parenthesis in function call.")
                     raise ParseError("Missing closing parenthesis in function call.")
                 return CallNode(name, arguments)
             return NameNode(name)
 
         if self.match("LPAREN"):
+            self.skip_newlines()
             node = self.parse_expression()
+            self.skip_newlines()
             if not self.match("RPAREN"):
+                if self.current().kind == "EOF":
+                    raise IncompleteInputError("Missing closing parenthesis.")
                 raise ParseError("Missing closing parenthesis.")
             return node
 
@@ -126,7 +176,13 @@ class Parser:
     def _format_unexpected_token(self, token):
         if token.kind == "EOF":
             return "Unexpected end of expression."
+        if token.kind == "NEWLINE":
+            return "Unexpected newline in expression."
         return f"Unexpected token '{token.value}' at position {token.position}."
+
+    def skip_newlines(self):
+        while self.current().kind == "NEWLINE":
+            self.advance()
 
     def _is_function_definition(self):
         if self.current().kind != "IDENT" or self.peek().kind != "LPAREN":

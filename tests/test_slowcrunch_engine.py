@@ -1,8 +1,8 @@
-import math
 import unittest
+import math
 
-from slowcrunch.core.errors import EvaluationError, ParseError
-from slowcrunch.engine import evaluate_expression
+from slowcrunch.core.errors import EvaluationError, IncompleteInputError, ParseError
+from slowcrunch.engine import evaluate_expression, parse_input
 from slowcrunch.runtime.context import EvaluationContext
 
 
@@ -41,6 +41,29 @@ class SlowCrunchEngineTest(unittest.TestCase):
                 {"expression": "ans + 3", "result": 8.0},
             ],
         )
+
+    def test_program_with_newline_separated_statements(self):
+        result, context = evaluate_expression("radius = 5\narea(r) = pi * r ^ 2\narea(radius)")
+        self.assertEqual(result, 78.53981633974483)
+        self.assertEqual(context.history, [5.0, 78.53981633974483])
+        self.assertEqual(
+            context.entries,
+            [
+                {
+                    "expression": "radius = 5\narea(r) = pi * r ^ 2\narea(radius)",
+                    "result": 78.53981633974483,
+                }
+            ],
+        )
+
+    def test_program_with_semicolon_separated_statements(self):
+        result, context = evaluate_expression("2 + 2; ans * 3")
+        self.assertEqual(result, 12.0)
+        self.assertEqual(context.history, [4.0, 12.0])
+
+    def test_multiline_parenthesized_expression(self):
+        result, _ = evaluate_expression("(\n1 + 2\n) * 3")
+        self.assertEqual(result, 9.0)
 
     def test_builtin_variables(self):
         result, _ = evaluate_expression("cos(0) + pi - pi")
@@ -163,6 +186,11 @@ class SlowCrunchEngineTest(unittest.TestCase):
         with self.assertRaises(ParseError) as context:
             evaluate_expression("1 +")
         self.assertEqual(str(context.exception), "Unexpected end of expression.")
+
+    def test_trailing_semicolon_requires_more_input(self):
+        with self.assertRaises(IncompleteInputError) as context:
+            parse_input("radius = 5;")
+        self.assertEqual(str(context.exception), "Expected another statement after ';'.")
 
 
 if __name__ == "__main__":

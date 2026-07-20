@@ -41,3 +41,8 @@ class FunctionDefNode:
     name: str
     parameters: list
     body: object
+
+
+@dataclass(frozen=True)
+class ProgramNode:
+    statements: list

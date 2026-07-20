@@ -20,6 +20,7 @@ SINGLE_CHAR_TOKENS = {
     "(": "LPAREN",
     ")": "RPAREN",
     ",": "COMMA",
+    ";": "SEMI",
 }
 
 
@@ -29,6 +30,11 @@ def tokenize(text):
 
     while index < len(text):
         char = text[index]
+
+        if char == "\n":
+            tokens.append(Token("NEWLINE", char, index))
+            index += 1
+            continue
 
         if char.isspace():
             index += 1
