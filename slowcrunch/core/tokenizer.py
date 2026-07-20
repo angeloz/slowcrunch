@@ -1,7 +1,12 @@
 from dataclasses import dataclass
 
 from slowcrunch.core.errors import TokenizeError
-from slowcrunch.runtime.numbers import ANGLE_INPUT_UNITS, SI_INPUT_PREFIXES, parse_number_literal
+from slowcrunch.runtime.numbers import (
+    ANGLE_INPUT_UNITS,
+    DURATION_INPUT_UNITS,
+    SI_INPUT_PREFIXES,
+    parse_number_literal,
+)
 
 
 @dataclass(frozen=True)
@@ -48,24 +53,14 @@ def tokenize(text):
 
         if char.isdigit() or char == ".":
             start = index
-            dot_count = 0
-            while index < len(text) and (text[index].isdigit() or text[index] == "."):
-                if text[index] == ".":
-                    dot_count += 1
-                index += 1
-            if dot_count > 1 or text[start:index] == ".":
-                raise TokenizeError(f"Invalid number at position {start}.")
+            index = _scan_number_end(text, start)
 
-            if index < len(text) and text[index] in {"e", "E"}:
-                exponent_index = index + 1
-                if exponent_index < len(text) and text[exponent_index] in {"+", "-"}:
-                    exponent_index += 1
-                exponent_start = exponent_index
-                while exponent_index < len(text) and text[exponent_index].isdigit():
-                    exponent_index += 1
-                if exponent_index == exponent_start:
-                    raise TokenizeError(f"Invalid scientific notation at position {start}.")
-                index = exponent_index
+            duration_match = _scan_duration_literal(text, start)
+            if duration_match is not None:
+                duration_end, duration_value = duration_match
+                tokens.append(Token("NUMBER", str(duration_value), start))
+                index = duration_end
+                continue
 
             suffix = ""
             unit = _match_angle_unit(text, index)
@@ -111,6 +106,61 @@ def tokenize(text):
     return tokens
 
 
+def _scan_number_end(text, start):
+    index = start
+    dot_count = 0
+    while index < len(text) and (text[index].isdigit() or text[index] == "."):
+        if text[index] == ".":
+            dot_count += 1
+        index += 1
+    if dot_count > 1 or text[start:index] == ".":
+        raise TokenizeError(f"Invalid number at position {start}.")
+
+    if index < len(text) and text[index] in {"e", "E"}:
+        exponent_index = index + 1
+        if exponent_index < len(text) and text[exponent_index] in {"+", "-"}:
+            exponent_index += 1
+        exponent_start = exponent_index
+        while exponent_index < len(text) and text[exponent_index].isdigit():
+            exponent_index += 1
+        if exponent_index == exponent_start:
+            raise TokenizeError(f"Invalid scientific notation at position {start}.")
+        index = exponent_index
+
+    return index
+
+
+def _scan_duration_literal(text, start):
+    components = []
+    index = start
+    end_index = start
+
+    while index < len(text) and (text[index].isdigit() or text[index] == "."):
+        number_end = _scan_number_end(text, index)
+        unit = _match_duration_unit(text, number_end)
+        if unit is None:
+            return None if not components else (end_index, sum(components))
+
+        if unit == "m":
+            component_value = float(text[index:number_end]) * 60.0
+        else:
+            component_value = parse_number_literal(text[index:number_end + len(unit)])
+        components.append(component_value)
+
+        end_index = number_end + len(unit)
+        index = _skip_inline_whitespace(text, end_index)
+
+    if not components:
+        return None
+
+    # Keep standalone `1m` as milli, not minute. The short `m` alias is accepted
+    # only within a composite duration such as `1h 20m 30s`.
+    if len(components) == 1 and text[start:end_index].endswith("m"):
+        return None
+
+    return end_index, sum(components)
+
+
 def _match_angle_unit(text, index):
     for unit in sorted(ANGLE_INPUT_UNITS, key=len, reverse=True):
         end_index = index + len(unit)
@@ -119,3 +169,20 @@ def _match_angle_unit(text, index):
         ):
             return unit
     return None
+
+
+def _match_duration_unit(text, index):
+    units = tuple(sorted(tuple(DURATION_INPUT_UNITS) + ("m",), key=len, reverse=True))
+    for unit in units:
+        end_index = index + len(unit)
+        if text[index:end_index] != unit:
+            continue
+        if end_index == len(text) or not (text[end_index].isalpha() or text[end_index] == "_"):
+            return unit
+    return None
+
+
+def _skip_inline_whitespace(text, index):
+    while index < len(text) and text[index].isspace() and text[index] != "\n":
+        index += 1
+    return index

@@ -29,6 +29,15 @@ class SlowCrunchNumbersTest(unittest.TestCase):
     def test_parse_milliradian_literal(self):
         self.assertEqual(parse_number_literal("2mrad"), 0.002)
 
+    def test_parse_second_literal(self):
+        self.assertEqual(parse_number_literal("90s"), 90.0)
+
+    def test_parse_minute_literal(self):
+        self.assertEqual(parse_number_literal("45min"), 2700.0)
+
+    def test_parse_hour_literal(self):
+        self.assertEqual(parse_number_literal("1h"), 3600.0)
+
     def test_format_plain_value(self):
         self.assertEqual(format_value(10000.0), "10000.0")
 

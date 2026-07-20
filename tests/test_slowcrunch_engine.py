@@ -55,6 +55,26 @@ class SlowCrunchEngineTest(unittest.TestCase):
         result, _ = evaluate_expression("2mrad")
         self.assertEqual(result, 0.002)
 
+    def test_second_literal_represents_duration(self):
+        result, _ = evaluate_expression("90s")
+        self.assertEqual(result, 90.0)
+
+    def test_minute_literal_represents_duration(self):
+        result, _ = evaluate_expression("45min")
+        self.assertEqual(result, 2700.0)
+
+    def test_compound_duration_literal_with_spaces(self):
+        result, _ = evaluate_expression("1h 20m 30s")
+        self.assertEqual(result, 4830.0)
+
+    def test_compound_duration_literal_without_spaces(self):
+        result, _ = evaluate_expression("1h20m30s")
+        self.assertEqual(result, 4830.0)
+
+    def test_short_minute_alias_requires_duration_context(self):
+        result, _ = evaluate_expression("20m")
+        self.assertEqual(result, 0.02)
+
     def test_imaginary_unit_variable(self):
         result, _ = evaluate_expression("i ^ 2")
         self.assertEqual(result, -1.0)

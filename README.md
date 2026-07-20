@@ -20,6 +20,7 @@ The project currently provides a small REPL-based TUI with:
 - scientific notation such as `1.2e6`
 - SI-prefix literals such as `10k`, `1M`, `220u`, `3f`, and `2a`
 - explicit angle literals such as `90deg`, `1.5rad`, and `2mrad`
+- explicit duration literals such as `1h 20m 30s`, `45min`, and `90s`
 - built-in functions: `abs`, `sin`, `cos`, `tan`, `sqrt`, `log`, `re`, `im`, `conj`, `arg`
 - built-in constants: `pi`, `e`, `i`
 - `ans` for the last result
@@ -77,6 +78,10 @@ Commands: :clear, :delete, :format, :functions, :help, :history, :load, :new, :r
 1.0
 >> 2mrad
 0.002
+>> 1h 20m 30s
+4830.0
+>> 45min
+2700.0
 >> radius = 5
 5.0
 >> area(r) = pi * r ^ 2
@@ -229,6 +234,7 @@ slowcrunch accepts multiple numeric entry styles:
 - scientific notation such as `1.2e6` or `4.7e-3`
 - SI prefixes such as `10k`, `1M`, `220u`, `3f`, `2a`, `5T`, `1P`
 - angle literals such as `90deg`, `1.5rad`, and `2mrad`
+- duration literals such as `1h 20m 30s`, `45min`, `90s`, and `500ms`
 
 SI prefixes are interpreted immediately as numeric values. For example:
 
@@ -250,6 +256,17 @@ Angle literals are also interpreted immediately:
 ```
 
 Angles are stored internally in radians, so expressions like `sin(90deg)` and `sin(pi / 2)` are equivalent.
+
+Durations are interpreted immediately as seconds:
+
+```text
+90s        = 90
+45min      = 2700
+1h20m30s   = 4830
+500ms      = 0.5
+```
+
+Use `min` for standalone minutes. The short `m` form is also accepted inside composite durations such as `1h 20m 30s`.
 
 Use `:format` to control numeric output rendering:
 

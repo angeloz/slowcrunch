@@ -7,6 +7,15 @@ ANGLE_INPUT_UNITS = {
     "deg": math.pi / 180.0,
     "rad": 1.0,
 }
+DURATION_INPUT_UNITS = {
+    "d": 86400.0,
+    "h": 3600.0,
+    "min": 60.0,
+    "s": 1.0,
+    "ms": 1e-3,
+    "us": 1e-6,
+    "ns": 1e-9,
+}
 
 SI_PREFIXES = {
     -30: "q",
@@ -58,6 +67,16 @@ def normalize_number(value):
 
 
 def parse_number_literal(text):
+    for duration_unit in sorted(DURATION_INPUT_UNITS, key=len, reverse=True):
+        if not text.endswith(duration_unit):
+            continue
+        numeric_text = text[: -len(duration_unit)]
+        try:
+            value = float(numeric_text)
+        except ValueError:
+            continue
+        return normalize_number(value * DURATION_INPUT_UNITS[duration_unit])
+
     unit = next((name for name in ANGLE_INPUT_UNITS if text.endswith(name)), "")
     raw_text = text[: -len(unit)] if unit else text
 
