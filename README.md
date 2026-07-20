@@ -2,6 +2,9 @@
 
 `slowcrunch` is a scientific calculator for the terminal, inspired by the SpeedCrunch workflow and user experience.
 
+This project is specifically inspired by [SpeedCrunch](https://gitlab.com/heldercorreia/speedcrunch), both as a user-facing reference and as a long-term source of ideas for interaction design and calculator behavior.
+slowcrunch does not reuse or derive from the SpeedCrunch source code; it is an original implementation inspired by the workflow and user experience.
+
 It is being built with three priorities in mind:
 
 - a fast, terminal-first user experience
@@ -521,3 +524,8 @@ Example:
 .. area(radius)
 78.53981633974483
 ```
+
+## Acknowledgements
+
+Thanks to Helder Correia for creating [SpeedCrunch](https://gitlab.com/heldercorreia/speedcrunch) and publishing its source code.
+That project is the main inspiration behind slowcrunch, while slowcrunch itself remains an original implementation.
