@@ -20,6 +20,15 @@ class SlowCrunchNumbersTest(unittest.TestCase):
     def test_parse_atto_literal(self):
         self.assertTrue(math.isclose(parse_number_literal("2a"), 2e-18))
 
+    def test_parse_degree_literal(self):
+        self.assertTrue(math.isclose(parse_number_literal("90deg"), math.pi / 2))
+
+    def test_parse_radian_literal(self):
+        self.assertEqual(parse_number_literal("1.5rad"), 1.5)
+
+    def test_parse_milliradian_literal(self):
+        self.assertEqual(parse_number_literal("2mrad"), 0.002)
+
     def test_format_plain_value(self):
         self.assertEqual(format_value(10000.0), "10000.0")
 

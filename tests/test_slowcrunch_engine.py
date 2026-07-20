@@ -43,6 +43,18 @@ class SlowCrunchEngineTest(unittest.TestCase):
         result, _ = evaluate_expression("3f * 2")
         self.assertTrue(math.isclose(result, 6e-15))
 
+    def test_degree_literal_is_converted_to_radians(self):
+        result, _ = evaluate_expression("sin(90deg)")
+        self.assertTrue(math.isclose(result, 1.0))
+
+    def test_radian_literal_is_used_directly(self):
+        result, _ = evaluate_expression("sin(1.5707963267948966rad)")
+        self.assertTrue(math.isclose(result, 1.0))
+
+    def test_milliradian_literal_supports_si_prefix(self):
+        result, _ = evaluate_expression("2mrad")
+        self.assertEqual(result, 0.002)
+
     def test_imaginary_unit_variable(self):
         result, _ = evaluate_expression("i ^ 2")
         self.assertEqual(result, -1.0)

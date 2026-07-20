@@ -19,6 +19,7 @@ The project currently provides a small REPL-based TUI with:
 - exponentiation with `^`
 - scientific notation such as `1.2e6`
 - SI-prefix literals such as `10k`, `1M`, `220u`, `3f`, and `2a`
+- explicit angle literals such as `90deg`, `1.5rad`, and `2mrad`
 - built-in functions: `abs`, `sin`, `cos`, `tan`, `sqrt`, `log`, `re`, `im`, `conj`, `arg`
 - built-in constants: `pi`, `e`, `i`
 - `ans` for the last result
@@ -72,6 +73,10 @@ Commands: :clear, :delete, :format, :functions, :help, :history, :load, :new, :r
 10025.0
 >> 3f * 2
 6.0000000000000005e-15
+>> sin(90deg)
+1.0
+>> 2mrad
+0.002
 >> radius = 5
 5.0
 >> area(r) = pi * r ^ 2
@@ -223,6 +228,7 @@ slowcrunch accepts multiple numeric entry styles:
 - plain decimals such as `12.5`
 - scientific notation such as `1.2e6` or `4.7e-3`
 - SI prefixes such as `10k`, `1M`, `220u`, `3f`, `2a`, `5T`, `1P`
+- angle literals such as `90deg`, `1.5rad`, and `2mrad`
 
 SI prefixes are interpreted immediately as numeric values. For example:
 
@@ -234,6 +240,16 @@ SI prefixes are interpreted immediately as numeric values. For example:
 3f    = 0.000000000000003
 2a    = 0.000000000000000002
 ```
+
+Angle literals are also interpreted immediately:
+
+```text
+90deg  = pi / 2
+1.5rad = 1.5
+2mrad  = 0.002
+```
+
+Angles are stored internally in radians, so expressions like `sin(90deg)` and `sin(pi / 2)` are equivalent.
 
 Use `:format` to control numeric output rendering:
 

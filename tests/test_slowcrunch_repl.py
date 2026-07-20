@@ -241,8 +241,10 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn("Built-in constants include pi, e, and i.", lines)
         self.assertIn("Numbers can use scientific notation such as 1.2e6.", lines)
         self.assertIn("Numbers can use SI prefixes such as 10k, 1M, 220u, or 3f.", lines)
+        self.assertIn("Angles can use explicit units such as 90deg, 1.5rad, or 2mrad.", lines)
         self.assertIn("  2 + 3i", lines)
         self.assertIn("  10k + 25", lines)
+        self.assertIn("  sin(90deg)", lines)
         self.assertIn("  sqrt(-1)", lines)
 
     def test_unknown_help_topic_lists_available_topics(self):

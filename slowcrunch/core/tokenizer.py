@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from slowcrunch.core.errors import TokenizeError
-from slowcrunch.runtime.numbers import SI_INPUT_PREFIXES, parse_number_literal
+from slowcrunch.runtime.numbers import ANGLE_INPUT_UNITS, SI_INPUT_PREFIXES, parse_number_literal
 
 
 @dataclass(frozen=True)
@@ -68,13 +68,24 @@ def tokenize(text):
                 index = exponent_index
 
             suffix = ""
+            unit = _match_angle_unit(text, index)
             if index < len(text) and text[index] in SI_INPUT_PREFIXES:
-                next_index = index + 1
-                if next_index == len(text) or text[next_index] == "i" or not (
-                    text[next_index].isalnum() or text[next_index] == "_"
-                ):
+                prefixed_unit = _match_angle_unit(text, index + 1)
+                if prefixed_unit is not None:
                     suffix = text[index]
                     index += 1
+                    unit = prefixed_unit
+                    index += len(unit)
+                else:
+                    next_index = index + 1
+                    if next_index == len(text) or text[next_index] == "i" or not (
+                        text[next_index].isalnum() or text[next_index] == "_"
+                    ):
+                        suffix = text[index]
+                        index += 1
+
+            if suffix == "" and unit is not None:
+                index += len(unit)
 
             is_imaginary = False
             if index < len(text) and text[index] == "i":
@@ -98,3 +109,13 @@ def tokenize(text):
 
     tokens.append(Token("EOF", "", len(text)))
     return tokens
+
+
+def _match_angle_unit(text, index):
+    for unit in sorted(ANGLE_INPUT_UNITS, key=len, reverse=True):
+        end_index = index + len(unit)
+        if text[index:end_index] == unit and (
+            end_index == len(text) or not (text[end_index].isalnum() or text[end_index] == "_")
+        ):
+            return unit
+    return None

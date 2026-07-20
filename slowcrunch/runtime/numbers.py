@@ -3,6 +3,10 @@ import math
 NUMERIC_TYPES = (int, float, complex)
 ZERO_TOLERANCE = 1e-30
 FORMAT_MODES = ("plain", "scientific", "engineering", "si")
+ANGLE_INPUT_UNITS = {
+    "deg": math.pi / 180.0,
+    "rad": 1.0,
+}
 
 SI_PREFIXES = {
     -30: "q",
@@ -54,11 +58,15 @@ def normalize_number(value):
 
 
 def parse_number_literal(text):
-    suffix = text[-1] if text and text[-1] in SI_INPUT_PREFIXES else ""
-    numeric_text = text[:-1] if suffix else text
+    unit = next((name for name in ANGLE_INPUT_UNITS if text.endswith(name)), "")
+    raw_text = text[: -len(unit)] if unit else text
+
+    suffix = raw_text[-1] if raw_text and raw_text[-1] in SI_INPUT_PREFIXES else ""
+    numeric_text = raw_text[:-1] if suffix else raw_text
     value = float(numeric_text)
     multiplier = SI_INPUT_PREFIXES.get(suffix, 1.0)
-    return normalize_number(value * multiplier)
+    unit_multiplier = ANGLE_INPUT_UNITS.get(unit, 1.0)
+    return normalize_number(value * multiplier * unit_multiplier)
 
 
 def format_value(value, mode="plain"):
