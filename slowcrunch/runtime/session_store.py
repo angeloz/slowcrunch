@@ -8,6 +8,7 @@ from pathlib import Path
 from slowcrunch.core.errors import SessionError
 from slowcrunch.runtime.ast_codec import decode_node, encode_node
 from slowcrunch.runtime.context import EvaluationContext
+from slowcrunch.runtime.value_codec import decode_value, encode_value
 
 DEFAULT_SESSION_DIR = ".slowcrunch-sessions"
 SESSION_ENV_VAR = "SLOWCRUNCH_SESSION_DIR"
@@ -114,10 +115,10 @@ class SessionStore:
             "version": SESSION_VERSION,
             "name": name,
             "saved_at": saved_at,
-            "ans": context.variables["ans"],
-            "history": context.history,
-            "entries": context.entries,
-            "variables": context.user_variables(),
+            "ans": encode_value(context.variables["ans"]),
+            "history": encode_value(context.history),
+            "entries": encode_value(context.entries),
+            "variables": encode_value(context.user_variables()),
             "functions": [
                 {
                     "name": function.name,
@@ -132,7 +133,7 @@ class SessionStore:
         context = EvaluationContext()
 
         for name, value in data.get("variables", {}).items():
-            context.set_variable(name, value)
+            context.set_variable(name, decode_value(value))
 
         for function in data.get("functions", []):
             context.set_function(
@@ -141,9 +142,9 @@ class SessionStore:
                 decode_node(function["body"]),
             )
 
-        context.history = list(data.get("history", []))
-        context.entries = list(data.get("entries", []))
-        context.variables["ans"] = data.get("ans", 0.0)
+        context.history = decode_value(list(data.get("history", [])))
+        context.entries = decode_value(list(data.get("entries", [])))
+        context.variables["ans"] = decode_value(data.get("ans", 0.0))
         return context
 
     def _path_for(self, name):

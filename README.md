@@ -18,8 +18,9 @@ The project currently provides a small REPL-based TUI with:
 - unary `+` and `-`
 - exponentiation with `^`
 - built-in functions: `abs`, `sin`, `cos`, `tan`, `sqrt`, `log`
-- built-in constants: `pi`, `e`
+- built-in constants: `pi`, `e`, `i`
 - `ans` for the last result
+- complex numbers such as `2 + 3i` and `sqrt(-1)`
 - user variable assignment such as `x = 2 * 5`
 - user-defined functions such as `area(r) = pi * r ^ 2`
 - `:clear`, `:delete`, `:functions`, `:history`, `:help`, `:load`, `:new`, `:rename-session`, `:reset`, `:save`, `:saveas`, `:sessions`, `:status`, and `:vars` commands
@@ -80,6 +81,10 @@ area(r)
 Help: functions
 Built-in functions include abs, sin, cos, tan, sqrt, and log.
 Define user functions with the form name(param1, param2) = expression.
+>> sqrt(-1)
+i
+>> (2 + 3i) * (1 - i)
+5.0 + i
 >> :history area
 3: area(r) = pi * r ^ 2 = Defined area(r)
 4: area(radius) = 78.53981633974483
@@ -133,7 +138,6 @@ Near-term priorities:
 Longer-term goals:
 
 - scientific constants expansion
-- complex numbers
 - a richer terminal experience closer to SpeedCrunch
 
 ## Session Storage

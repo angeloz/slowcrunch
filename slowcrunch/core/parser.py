@@ -142,6 +142,10 @@ class Parser:
             self.advance()
             return NumberNode(float(token.value))
 
+        if token.kind == "IMAG_NUMBER":
+            self.advance()
+            return NumberNode(complex(0.0, float(token.value)))
+
         if token.kind == "IDENT":
             name = self.advance().value
             if self.match("LPAREN"):

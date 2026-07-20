@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class NumberNode:
-    value: float
+    value: object
 
 
 @dataclass(frozen=True)

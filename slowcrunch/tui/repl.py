@@ -9,6 +9,7 @@ except ImportError:  # pragma: no cover
 from slowcrunch.core.errors import IncompleteInputError, SessionError, SlowCrunchError
 from slowcrunch.engine import evaluate_expression, parse_input
 from slowcrunch.runtime.context import EvaluationContext
+from slowcrunch.runtime.numbers import format_value
 from slowcrunch.runtime.session_store import SessionStore
 
 REPL_COMMANDS = (
@@ -112,7 +113,7 @@ def _print_variables(context):
         print("No user variables.")
         return
     for name in sorted(variables):
-        print(f"{name} = {variables[name]}")
+        print(f"{name} = {format_value(variables[name])}")
 
 
 def _print_functions(context):
@@ -164,12 +165,12 @@ def _history_lines(context, query=None):
             (index, entry)
             for index, entry in entries
             if lowered_query in entry["expression"].lower()
-            or lowered_query in str(entry["result"]).lower()
+            or lowered_query in format_value(entry["result"]).lower()
         ]
         if not entries:
             return [f"No history entries matching '{query}'."]
 
-    return [f"{index}: {entry['expression']} = {entry['result']}" for index, entry in entries]
+    return [f"{index}: {entry['expression']} = {format_value(entry['result'])}" for index, entry in entries]
 
 
 def _history_replay_entry(context, token):
@@ -227,27 +228,30 @@ def _help_lines(topic=None):
             "Use parentheses to group sub-expressions.",
             "Use a trailing ';' to continue a multi-statement program on the next line.",
             "The continuation prompt is '.. ' while additional input is expected.",
-            "Built-in constants include pi and e.",
+            "Built-in constants include pi, e, and i.",
             "The ans variable stores the last numeric result.",
             "Examples:",
             "  2 + 3 * 4",
+            "  2 + 3i",
             "  radius = 5;",
             "  .. area(r) = pi * r ^ 2;",
             "  .. area(radius)",
             "  (1 + 2) * 3",
-            "  sqrt(9) + cos(0)",
+            "  sqrt(-1)",
         ]
 
     if topic == "functions":
         return [
             "Help: functions",
             "Built-in functions include abs, sin, cos, tan, sqrt, and log.",
+            "These functions also accept complex arguments.",
             "Define user functions with the form name(param1, param2) = expression.",
             "Function parameters are local to the function body.",
             "User-defined functions can reference global variables.",
             "Examples:",
             "  square(x) = x ^ 2",
             "  area(r) = pi * r ^ 2",
+            "  sqrt(-1)",
             "  area(5)",
             "  :functions",
         ]
@@ -314,9 +318,10 @@ def _help_lines(topic=None):
             "Help: vars",
             "Assign user variables with the form name = expression.",
             "Use :vars to list user-defined variables.",
-            "Protected names such as ans, pi, and e cannot be reassigned.",
+            "Protected names such as ans, pi, e, and i cannot be reassigned.",
             "Examples:",
             "  radius = 5",
+            "  z = 2 + 3i",
             "  mass = 12 / 3",
             "  pi * radius ^ 2",
             "  :vars",
@@ -520,7 +525,7 @@ def run_repl(session_store=None):
                             print(f"Error: {error}")
                             continue
                         _mark_session_dirty(session_state)
-                        print(result)
+                        print(format_value(result))
                         continue
 
                     _print_history(context, " ".join(parts[1:]))
@@ -639,4 +644,4 @@ def run_repl(session_store=None):
             continue
 
         _mark_session_dirty(session_state)
-        print(result)
+        print(format_value(result))

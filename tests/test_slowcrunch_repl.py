@@ -180,6 +180,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
     def test_functions_help_explains_definition_syntax(self):
         lines = _help_lines("functions")
+        self.assertIn("These functions also accept complex arguments.", lines)
         self.assertIn(
             "Define user functions with the form name(param1, param2) = expression.",
             lines,
@@ -210,7 +211,14 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
     def test_vars_help_explains_assignment_syntax(self):
         lines = _help_lines("vars")
         self.assertIn("Assign user variables with the form name = expression.", lines)
+        self.assertIn("Protected names such as ans, pi, e, and i cannot be reassigned.", lines)
         self.assertIn("  :vars", lines)
+
+    def test_basics_help_mentions_imaginary_unit(self):
+        lines = _help_lines("basics")
+        self.assertIn("Built-in constants include pi, e, and i.", lines)
+        self.assertIn("  2 + 3i", lines)
+        self.assertIn("  sqrt(-1)", lines)
 
     def test_unknown_help_topic_lists_available_topics(self):
         lines = _help_lines("unknown")
@@ -261,6 +269,18 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         context.record_entry("area(r) = pi * r ^ 2", "Defined area(r)")
         lines = _history_lines(context, "area")
         self.assertEqual(lines, ["2: area(r) = pi * r ^ 2 = Defined area(r)"])
+
+    def test_history_lines_format_complex_values(self):
+        context = EvaluationContext()
+        context.record_entry("sqrt(-1)", 1j)
+        lines = _history_lines(context)
+        self.assertEqual(lines, ["1: sqrt(-1) = i"])
+
+    def test_history_lines_filter_complex_values_by_rendered_form(self):
+        context = EvaluationContext()
+        context.record_entry("sqrt(-1)", 1j)
+        lines = _history_lines(context, "i")
+        self.assertEqual(lines, ["1: sqrt(-1) = i"])
 
     def test_history_lines_report_missing_filter_match(self):
         context = EvaluationContext()

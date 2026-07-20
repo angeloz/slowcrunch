@@ -41,6 +41,29 @@ class SlowCrunchSessionStoreTest(unittest.TestCase):
             session = store.save(context)
             self.assertRegex(session.name, r"^session-\d{8}-\d{6}$")
 
+    def test_save_and_load_complex_values(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            context = None
+
+            for expression in (
+                "z = 2 + 3i",
+                "sqrt(-1)",
+                "z * i",
+            ):
+                _, context = evaluate_expression(expression, context)
+
+            store.save(context, "complex")
+            loaded_context, _ = store.load("complex")
+            self.assertEqual(loaded_context.get_variable("z"), complex(2.0, 3.0))
+            self.assertEqual(loaded_context.get_variable("ans"), complex(-3.0, 2.0))
+            self.assertEqual(loaded_context.history, [complex(2.0, 3.0), 1j, complex(-3.0, 2.0)])
+            self.assertEqual(loaded_context.entries[0]["result"], complex(2.0, 3.0))
+            result, loaded_context = evaluate_expression("z + ans", loaded_context)
+
+            self.assertEqual(result, complex(-1.0, 5.0))
+            self.assertEqual(loaded_context.get_variable("ans"), complex(-1.0, 5.0))
+
     def test_list_sessions_returns_saved_sessions(self):
         with tempfile.TemporaryDirectory() as tempdir:
             store = SessionStore(tempdir)

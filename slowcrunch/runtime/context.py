@@ -14,7 +14,7 @@ class EvaluationContext:
     entries: list = field(default_factory=list)
 
     def __post_init__(self):
-        self.protected_variables = {"ans", "e", "pi"}
+        self.protected_variables = {"ans", "e", "i", "pi"}
         self.protected_functions = set(self.functions)
 
     def get_variable(self, name):

@@ -1,5 +1,3 @@
-import math
-
 from slowcrunch.core.ast import (
     AssignNode,
     BinaryOpNode,
@@ -11,6 +9,7 @@ from slowcrunch.core.ast import (
     UnaryOpNode,
 )
 from slowcrunch.core.errors import EvaluationError
+from slowcrunch.runtime.numbers import is_numeric, normalize_number
 from slowcrunch.runtime.user_functions import UserFunction
 
 
@@ -24,7 +23,7 @@ class Evaluator:
             result = None
             for statement in node.statements:
                 result = self.evaluate(statement)
-                if isinstance(result, (int, float)):
+                if is_numeric(result):
                     self.context.set_ans(result)
             return result
 
@@ -48,9 +47,9 @@ class Evaluator:
         if isinstance(node, UnaryOpNode):
             operand = self.evaluate(node.operand)
             if node.operator == "+":
-                return operand
+                return normalize_number(operand)
             if node.operator == "-":
-                return -operand
+                return normalize_number(-operand)
             raise EvaluationError(f"Unsupported unary operator: {node.operator}")
 
         if isinstance(node, BinaryOpNode):
@@ -77,7 +76,7 @@ class Evaluator:
             return Evaluator(self.context, local_variables).evaluate(function.body)
 
         try:
-            return function(*arguments)
+            return normalize_number(function(*arguments))
         except TypeError as error:
             raise EvaluationError("Invalid arguments for function call.") from error
         except ValueError as error:
@@ -85,15 +84,15 @@ class Evaluator:
 
     def apply_binary_operator(self, operator, left, right):
         if operator == "+":
-            return left + right
+            return normalize_number(left + right)
         if operator == "-":
-            return left - right
+            return normalize_number(left - right)
         if operator == "*":
-            return left * right
+            return normalize_number(left * right)
         if operator == "/":
             if right == 0:
                 raise EvaluationError("Division by zero is not allowed.")
-            return left / right
+            return normalize_number(left / right)
         if operator == "^":
-            return math.pow(left, right)
+            return normalize_number(left ** right)
         raise EvaluationError(f"Unsupported operator: {operator}")

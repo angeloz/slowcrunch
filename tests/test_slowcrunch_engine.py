@@ -27,6 +27,22 @@ class SlowCrunchEngineTest(unittest.TestCase):
         result, _ = evaluate_expression("sqrt(9) + sin(0)")
         self.assertEqual(result, 3.0)
 
+    def test_imaginary_unit_variable(self):
+        result, _ = evaluate_expression("i ^ 2")
+        self.assertEqual(result, -1.0)
+
+    def test_imaginary_number_literal(self):
+        result, _ = evaluate_expression("2 + 3i")
+        self.assertEqual(result, complex(2.0, 3.0))
+
+    def test_complex_expression(self):
+        result, _ = evaluate_expression("(2 + 3i) * (1 - i)")
+        self.assertEqual(result, complex(5.0, 1.0))
+
+    def test_complex_builtin_function(self):
+        result, _ = evaluate_expression("sqrt(-1)")
+        self.assertEqual(result, 1j)
+
     def test_ans_is_reused(self):
         context = EvaluationContext()
         first, context = evaluate_expression("10 / 2", context)
@@ -41,6 +57,14 @@ class SlowCrunchEngineTest(unittest.TestCase):
                 {"expression": "ans + 3", "result": 8.0},
             ],
         )
+
+    def test_ans_can_reuse_complex_results(self):
+        context = EvaluationContext()
+        first, context = evaluate_expression("sqrt(-1)", context)
+        second, context = evaluate_expression("ans ^ 2", context)
+        self.assertEqual(first, 1j)
+        self.assertEqual(second, -1.0)
+        self.assertEqual(context.history, [1j, -1.0])
 
     def test_program_with_newline_separated_statements(self):
         result, context = evaluate_expression("radius = 5\narea(r) = pi * r ^ 2\narea(radius)")
@@ -89,6 +113,11 @@ class SlowCrunchEngineTest(unittest.TestCase):
     def test_protected_variable_cannot_be_assigned(self):
         with self.assertRaises(EvaluationError):
             evaluate_expression("pi = 4")
+
+    def test_imaginary_unit_cannot_be_assigned(self):
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("i = 4")
+        self.assertEqual(str(error.exception), "Protected variable cannot be assigned: i")
 
     def test_protected_variable_cannot_be_deleted(self):
         context = EvaluationContext()

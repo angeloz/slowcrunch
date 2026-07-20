@@ -55,6 +55,12 @@ def tokenize(text):
             value = text[start:index]
             if dot_count > 1 or value == ".":
                 raise TokenizeError(f"Invalid number at position {start}.")
+            if index < len(text) and text[index] == "i":
+                next_index = index + 1
+                if next_index == len(text) or not (text[next_index].isalnum() or text[next_index] == "_"):
+                    tokens.append(Token("IMAG_NUMBER", value, start))
+                    index += 1
+                    continue
             tokens.append(Token("NUMBER", value, start))
             continue
 
