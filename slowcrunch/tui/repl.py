@@ -722,9 +722,9 @@ def _help_lines(topic=None):
     if topic == "sessions":
         return [
             "Help: sessions",
-            "Use :save [name] to store the current session as JSON.",
-            "Use :saveas name to save under a new explicit name.",
-            "If no name is provided, slowcrunch generates one from the current date and time.",
+            "Every session is created and saved automatically after calculations and persistent changes.",
+            "New automatic sessions use names such as slowcrunch-20260722-143000.",
+            "Use :save [name] or :saveas name to choose the name used by later automatic saves.",
             "Use :sessions to list available saved sessions.",
             "Use :status to inspect the current session state.",
             "Use :load name to replace the current session with a saved one.",
@@ -743,7 +743,7 @@ def _help_lines(topic=None):
         return [
             "Help: status",
             "Use :status to inspect the current session.",
-            "The status includes the active session name, last save time, dirty state, numeric format mode, angle mode, zero tolerance, and object counts.",
+            "The status includes the active session name, last automatic save time, dirty state, numeric format mode, angle mode, zero tolerance, and object counts.",
             "Examples:",
             "  :status",
             "  :save demo",
@@ -818,8 +818,21 @@ def _mark_session_dirty(session_state):
     session_state.dirty = True
 
 
-def _start_new_session():
-    return EvaluationContext(), SessionState()
+def _autosave_session(context, session_store, session_state):
+    try:
+        session = session_store.save(context, session_state.current_name)
+    except OSError as error:
+        _mark_session_dirty(session_state)
+        raise SessionError(f"Automatic session save failed: {error}") from error
+    _mark_session_saved(session_state, session)
+    return session
+
+
+def _start_new_session(session_store):
+    context = EvaluationContext()
+    session_state = SessionState()
+    _autosave_session(context, session_store, session_state)
+    return context, session_state
 
 
 def _variable_file_arguments(arguments, usage, allow_force=False):
@@ -888,11 +901,14 @@ def _read_statement():
 
 
 def run_repl(session_store=None, variable_store=None):
-    context = EvaluationContext()
-    session_state = SessionState()
     display_settings = DisplaySettings()
     session_store = session_store or SessionStore()
     variable_store = variable_store or VariableStore()
+    try:
+        context, session_state = _start_new_session(session_store)
+    except SessionError as error:
+        print(f"Error: {error}")
+        return
     _configure_readline(context, session_store)
 
     print("slowcrunch")
@@ -1000,6 +1016,7 @@ def run_repl(session_store=None, variable_store=None):
                         raise SessionError("Usage: :tolerance [value]") from error
                     except SlowCrunchError as error:
                         raise SessionError(str(error)) from error
+                    _autosave_session(context, session_store, session_state)
                     print(f"Zero tolerance set to {context.zero_tolerance:.12g}.")
                     continue
 
@@ -1025,7 +1042,6 @@ def run_repl(session_store=None, variable_store=None):
                         except SlowCrunchError as error:
                             print(f"Error: {error}")
                             continue
-                        _mark_session_dirty(session_state)
                         for rendered_line in _render_value_lines(
                             result,
                             display_settings,
@@ -1034,6 +1050,7 @@ def run_repl(session_store=None, variable_store=None):
                             entry["expression"],
                         ):
                             print(rendered_line)
+                        _autosave_session(context, session_store, session_state)
                         continue
 
                     _print_history(context, display_settings, " ".join(parts[1:]))
@@ -1066,7 +1083,7 @@ def run_repl(session_store=None, variable_store=None):
                     )
                     variables, variable_kinds, variable_file = variable_store.load(path, format_name)
                     _apply_variable_snapshot(context, variables, variable_kinds, replace=False)
-                    _mark_session_dirty(session_state)
+                    _autosave_session(context, session_store, session_state)
                     _configure_readline(context, session_store)
                     print(
                         f"Imported {variable_file.variable_count} variable(s) from {variable_file.path} "
@@ -1083,7 +1100,7 @@ def run_repl(session_store=None, variable_store=None):
                     _ensure_clean_session(session_state, ":load-vars", force_requested)
                     variables, variable_kinds, variable_file = variable_store.load(path, format_name)
                     _apply_variable_snapshot(context, variables, variable_kinds, replace=True)
-                    _mark_session_dirty(session_state)
+                    _autosave_session(context, session_store, session_state)
                     _configure_readline(context, session_store)
                     print(
                         f"Loaded {variable_file.variable_count} variable(s) from {variable_file.path} "
@@ -1114,7 +1131,7 @@ def run_repl(session_store=None, variable_store=None):
                     if arguments:
                         raise SessionError("Usage: :new [--force]")
                     _ensure_clean_session(session_state, ":new", force_requested)
-                    context, session_state = _start_new_session()
+                    context, session_state = _start_new_session(session_store)
                     _configure_readline(context, session_store)
                     print("Started a new session.")
                     continue
@@ -1126,10 +1143,7 @@ def run_repl(session_store=None, variable_store=None):
                         raise SessionError("Usage: :reset [--force]")
                     _ensure_clean_session(session_state, ":reset", force_requested)
                     context.reset_user_state()
-                    if session_state.current_name is not None:
-                        _mark_session_dirty(session_state)
-                    else:
-                        session_state.dirty = False
+                    _autosave_session(context, session_store, session_state)
                     _configure_readline(context, session_store)
                     print("Current session reset.")
                     continue
@@ -1164,13 +1178,13 @@ def run_repl(session_store=None, variable_store=None):
                     target, name = parts[1], parts[2]
                     if target == "var":
                         context.delete_variable(name)
-                        _mark_session_dirty(session_state)
+                        _autosave_session(context, session_store, session_state)
                         _configure_readline(context, session_store)
                         print(f"Deleted variable '{name}'.")
                         continue
                     if target == "function":
                         context.delete_function(name)
-                        _mark_session_dirty(session_state)
+                        _autosave_session(context, session_store, session_state)
                         _configure_readline(context, session_store)
                         print(f"Deleted function '{name}'.")
                         continue
@@ -1179,7 +1193,7 @@ def run_repl(session_store=None, variable_store=None):
                         if session_state.current_name == name:
                             session_state.current_name = None
                             session_state.last_saved_at = None
-                            session_state.dirty = True
+                            _autosave_session(context, session_store, session_state)
                         print(f"Deleted session '{name}'.")
                         continue
                     raise SessionError("Usage: :delete var|function|session name")
@@ -1195,7 +1209,6 @@ def run_repl(session_store=None, variable_store=None):
             print(f"Error: {error}")
             continue
 
-        _mark_session_dirty(session_state)
         for rendered_line in _render_value_lines(
             result,
             display_settings,
@@ -1204,3 +1217,7 @@ def run_repl(session_store=None, variable_store=None):
             line,
         ):
             print(rendered_line)
+        try:
+            _autosave_session(context, session_store, session_state)
+        except SessionError as error:
+            print(f"Error: {error}")

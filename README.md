@@ -47,7 +47,7 @@ slowcrunch currently provides:
 - history filtering with `:history text` and history replay with `:history !index`
 - output modes: `plain`, `scientific`, `engineering`, and `si`
 - hierarchical topic help such as `:help statistics`, `:help matrices`, `:help vectors`, `:help systems`, `:help geometry`, and `:help vars`
-- named or timestamped session save/load
+- automatic session persistence after every calculation and named or timestamped session save/load
 - variable export, import, and load in JSON or CSV
 - multi-statement programs separated by newline or `;`
 - keyboard history support through `readline` when available
@@ -307,7 +307,7 @@ Longer-term goals:
 
 ## Session Storage
 
-Saved sessions are written as JSON files in `.slowcrunch-sessions/` by default.
+Sessions are written as JSON files in `.slowcrunch-sessions/` by default. A new session is created automatically when the REPL starts and saved again after every calculation or persistent state change, so its expression history and results are retained.
 
 Examples:
 
@@ -322,7 +322,7 @@ Examples:
 :tolerance 1e-12
 ```
 
-If `:save` is called without a name, slowcrunch generates one from the current local date and time.
+Automatic sessions use names such as `slowcrunch-20260722-143000`. If another session starts in the same second, slowcrunch adds a numeric suffix instead of overwriting it. Use `:save name` or `:saveas name` to select a descriptive name; later automatic saves continue to update that named session.
 
 ## Session Management Commands
 
@@ -346,8 +346,8 @@ Use these commands to manage the current interactive session:
 ```
 
 `:clear` only clears the screen.  
-`:new` starts a fresh unnamed session.  
-`:status` prints the current session name, last save time, dirty state, format settings, zero tolerance, and counts.  
+`:new` starts and immediately saves a fresh timestamped session.
+`:status` prints the current session name, last automatic save time, dirty state, format settings, zero tolerance, and counts.
 `:tolerance` shows or changes the near-zero normalization threshold.  
 `:reset` clears the in-memory session state.  
 `:delete` removes an explicit target and never guesses what should be deleted.

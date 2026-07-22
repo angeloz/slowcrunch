@@ -36,7 +36,7 @@ class SessionStore:
 
     def save(self, context, name=None):
         self.root.mkdir(parents=True, exist_ok=True)
-        session_name = self._normalize_name(name) if name else self._generated_name()
+        session_name = self._normalize_name(name) if name else self._available_generated_name()
         saved_at = datetime.now().astimezone().isoformat(timespec="seconds")
         path = self._path_for(session_name)
         payload = self._serialize_context(context, session_name, saved_at)
@@ -165,4 +165,13 @@ class SessionStore:
         return normalized
 
     def _generated_name(self):
-        return datetime.now().astimezone().strftime("session-%Y%m%d-%H%M%S")
+        return datetime.now().astimezone().strftime("slowcrunch-%Y%m%d-%H%M%S")
+
+    def _available_generated_name(self):
+        base_name = self._generated_name()
+        session_name = base_name
+        suffix = 2
+        while self._path_for(session_name).exists():
+            session_name = f"{base_name}-{suffix}"
+            suffix += 1
+        return session_name

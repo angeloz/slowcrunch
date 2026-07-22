@@ -39,7 +39,17 @@ class SlowCrunchSessionStoreTest(unittest.TestCase):
             store = SessionStore(tempdir)
             _, context = evaluate_expression("2 + 2")
             session = store.save(context)
-            self.assertRegex(session.name, r"^session-\d{8}-\d{6}$")
+            self.assertRegex(session.name, r"^slowcrunch-\d{8}-\d{6}$")
+
+    def test_generated_session_names_do_not_overwrite_each_other(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            _, context = evaluate_expression("2 + 2")
+            first = store.save(context)
+            second = store.save(context)
+
+            self.assertNotEqual(first.name, second.name)
+            self.assertEqual(len(store.list_sessions()), 2)
 
     def test_save_and_load_complex_values(self):
         with tempfile.TemporaryDirectory() as tempdir:

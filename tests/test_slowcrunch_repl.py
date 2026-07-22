@@ -1,11 +1,15 @@
+import tempfile
 import unittest
 
 from slowcrunch.core.errors import EvaluationError, SessionError
+from slowcrunch.engine import evaluate_expression
 from slowcrunch.runtime.context import EvaluationContext
+from slowcrunch.runtime.session_store import SessionStore
 from slowcrunch.tui.repl import (
     DisplaySettings,
     SessionState,
     _apply_variable_snapshot,
+    _autosave_session,
     _completion_candidates,
     _ensure_clean_session,
     _help_lines,
@@ -14,11 +18,40 @@ from slowcrunch.tui.repl import (
     _list_slice_lines,
     _requires_continuation,
     _status_lines,
+    _start_new_session,
     _variable_value_lines,
 )
 
 
 class SlowCrunchReplCompletionTest(unittest.TestCase):
+    def test_autosave_creates_and_updates_timestamped_session(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            context, state = _start_new_session(store)
+            self.assertRegex(state.current_name, r"^slowcrunch-\d{8}-\d{6}$")
+
+            _, context = evaluate_expression("radius = 5", context)
+            _autosave_session(context, store, state)
+            loaded_context, session = store.load(state.current_name)
+
+            self.assertEqual(session.name, state.current_name)
+            self.assertFalse(state.dirty)
+            self.assertEqual(loaded_context.get_variable("radius"), 5.0)
+
+    def test_autosave_uses_the_active_named_session(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            context, state = _start_new_session(store)
+            named_session = store.save(context, "experiment")
+            state = SessionState(named_session.name, named_session.saved_at)
+
+            _, context = evaluate_expression("radius = 5", context)
+            _autosave_session(context, store, state)
+            loaded_context, session = store.load("experiment")
+
+            self.assertEqual(session.name, "experiment")
+            self.assertEqual(loaded_context.get_variable("radius"), 5.0)
+
     def test_function_completion_adds_open_parenthesis(self):
         context = EvaluationContext()
         matches = _completion_candidates(context, "sq")
@@ -381,7 +414,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
     def test_status_help_mentions_dirty_state(self):
         lines = _help_lines("status")
-        self.assertIn("The status includes the active session name, last save time, dirty state, numeric format mode, angle mode, zero tolerance, and object counts.", lines)
+        self.assertIn("The status includes the active session name, last automatic save time, dirty state, numeric format mode, angle mode, zero tolerance, and object counts.", lines)
 
     def test_vars_help_explains_assignment_syntax(self):
         lines = _help_lines("vars")
@@ -432,8 +465,9 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
     def test_sessions_help_explains_save_and_load(self):
         lines = _help_lines("sessions")
-        self.assertIn("Use :save [name] to store the current session as JSON.", lines)
-        self.assertIn("Use :saveas name to save under a new explicit name.", lines)
+        self.assertIn("Every session is created and saved automatically after calculations and persistent changes.", lines)
+        self.assertIn("New automatic sessions use names such as slowcrunch-20260722-143000.", lines)
+        self.assertIn("Use :save [name] or :saveas name to choose the name used by later automatic saves.", lines)
         self.assertIn("Use :status to inspect the current session state.", lines)
         self.assertIn("Use :rename-session name to rename the current saved session on disk.", lines)
         self.assertIn("  :load demo", lines)
