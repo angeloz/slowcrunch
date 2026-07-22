@@ -3,13 +3,26 @@ import math
 
 from slowcrunch.runtime.numbers import format_angle_dms, format_duration_hms, to_degrees
 from slowcrunch.runtime.matrices import (
+    apply_matrix,
+    cross_product,
+    diagonal_matrix,
     determinant,
+    identity_matrix,
     inverse_matrix,
+    least_squares_solution,
+    matrix_rank,
+    matrix_trace,
     multiply_matrices,
+    reduced_row_echelon_form,
+    reflection_2d,
+    rotation_2d,
+    shear_2d,
     require_matrix,
     require_square_matrix,
     require_vector,
     solve_linear_system,
+    scale_2d,
+    vector_norm,
     vector_or_matrix_shape,
 )
 
@@ -54,8 +67,13 @@ BUILTIN_FUNCTION_GROUPS = (
     ("Combinatorics", ("fact", "perm", "comb")),
     (
         "Linear algebra",
-        ("shape", "rows", "cols", "transpose", "dot", "matmul", "det", "inv", "solve"),
+        (
+            "shape", "rows", "cols", "transpose", "dot", "matmul", "det", "inv", "solve",
+            "least_squares", "rotate2d", "scale2d", "shear2d", "reflect2d", "apply",
+            "identity", "diag", "trace", "rank", "rref",
+        ),
     ),
+    ("Vector operations", ("norm", "cross")),
     ("Formatting helpers", ("deg", "dms", "hms")),
 )
 
@@ -203,6 +221,19 @@ def _require_non_negative_integer(value, function_name, argument_name=None):
     if normalized < 0 or not normalized.is_integer():
         raise ValueError(f"Function '{function_name}' expects a non-negative integer{suffix}.")
     return int(normalized)
+
+
+def _require_positive_integer(value, function_name):
+    integer = _require_non_negative_integer(value, function_name)
+    if integer == 0:
+        raise ValueError(f"Function '{function_name}' expects a positive integer.")
+    return integer
+
+
+def _require_real_number(value, function_name):
+    if isinstance(value, bool) or isinstance(value, complex) or not isinstance(value, (int, float)):
+        raise ValueError(f"Function '{function_name}' expects a real number.")
+    return float(value)
 
 
 def _list_length(value):
@@ -422,6 +453,86 @@ def _solve(matrix, vector):
     return solve_linear_system(coefficient_matrix, right_vector, "solve")
 
 
+def _least_squares(matrix, vector):
+    coefficient_matrix = require_matrix(matrix, "least_squares", "first argument")
+    right_vector = require_vector(vector, "least_squares", "second argument")
+    if len(right_vector) != len(coefficient_matrix):
+        raise ValueError(
+            "Function 'least_squares' requires the second argument to have one value for each matrix row."
+        )
+    return least_squares_solution(coefficient_matrix, right_vector, "least_squares")
+
+
+def _rotate_2d(angle):
+    return rotation_2d(_require_real_number(angle, "rotate2d"))
+
+
+def _scale_2d(x_scale, y_scale):
+    return scale_2d(
+        _require_real_number(x_scale, "scale2d"),
+        _require_real_number(y_scale, "scale2d"),
+    )
+
+
+def _shear_2d(xy_shear, yx_shear):
+    return shear_2d(
+        _require_real_number(xy_shear, "shear2d"),
+        _require_real_number(yx_shear, "shear2d"),
+    )
+
+
+def _reflect_2d(direction):
+    values = require_vector(direction, "reflect2d", "direction")
+    if len(values) != 2:
+        raise ValueError("Function 'reflect2d' expects a direction vector of length 2.")
+    return reflection_2d([_require_real_number(value, "reflect2d") for value in values])
+
+
+def _apply(matrix, vector):
+    transformation = require_matrix(matrix, "apply", "first argument")
+    values = require_vector(vector, "apply", "second argument")
+    if len(transformation[0]) != len(values):
+        raise ValueError(
+            "Function 'apply' requires the column count of the matrix to match the vector length."
+        )
+    return apply_matrix(transformation, values)
+
+
+def _identity(size):
+    return identity_matrix(_require_positive_integer(size, "identity"))
+
+
+def _diagonal(vector):
+    values = require_vector(vector, "diag")
+    if not values:
+        raise ValueError("Function 'diag' does not accept an empty vector.")
+    return diagonal_matrix(values)
+
+
+def _trace(value):
+    return matrix_trace(require_square_matrix(value, "trace"))
+
+
+def _rank(value):
+    return matrix_rank(require_matrix(value, "rank"))
+
+
+def _rref(value):
+    return reduced_row_echelon_form(require_matrix(value, "rref"))
+
+
+def _norm(value):
+    return vector_norm(require_vector(value, "norm"))
+
+
+def _cross(left, right):
+    left_vector = require_vector(left, "cross", "first argument")
+    right_vector = require_vector(right, "cross", "second argument")
+    if len(left_vector) != 3 or len(right_vector) != 3:
+        raise ValueError("Function 'cross' expects two vectors of length 3.")
+    return cross_product(left_vector, right_vector)
+
+
 def builtin_function_groups():
     return BUILTIN_FUNCTION_GROUPS
 
@@ -438,6 +549,7 @@ def build_builtin_variables():
 def build_builtin_functions():
     return {
         "abs": abs,
+        "apply": _wrap_math_function(_apply),
         "acos": _wrap_math_function(cmath.acos),
         "acosh": _wrap_math_function(cmath.acosh),
         "acot": _wrap_math_function(_acot),
@@ -452,6 +564,7 @@ def build_builtin_functions():
         "ceil": _wrap_math_function(math.ceil),
         "comb": _wrap_math_function(_combinations),
         "conj": _wrap_math_function(_conjugate),
+        "cross": _wrap_math_function(_cross),
         "corr": _wrap_math_function(_list_correlation),
         "cos": _wrap_math_function(cmath.cos),
         "cosh": _wrap_math_function(cmath.cosh),
@@ -463,6 +576,7 @@ def build_builtin_functions():
         "cols": _wrap_math_function(_matrix_columns),
         "deg": _wrap_math_function(_degrees),
         "det": _wrap_math_function(_determinant),
+        "diag": _wrap_math_function(_diagonal),
         "dms": _wrap_math_function(format_angle_dms),
         "dot": _wrap_math_function(_dot),
         "exp": _wrap_math_function(cmath.exp),
@@ -470,12 +584,14 @@ def build_builtin_functions():
         "floor": _wrap_math_function(math.floor),
         "hms": _wrap_math_function(format_duration_hms),
         "im": _wrap_math_function(_imaginary_part),
+        "identity": _wrap_math_function(_identity),
         "inv": _wrap_math_function(_inverse),
         "ln": _wrap_math_function(cmath.log),
         "log": _wrap_math_function(cmath.log),
         "log10": _wrap_math_function(cmath.log10),
         "log2": _wrap_math_function(_log2),
         "len": _wrap_math_function(_list_length),
+        "least_squares": _wrap_math_function(_least_squares),
         "linreg": _wrap_math_function(_list_linear_regression),
         "max": _wrap_math_function(_list_max),
         "matmul": _wrap_math_function(_matrix_multiply),
@@ -483,8 +599,11 @@ def build_builtin_functions():
         "median": _wrap_math_function(_list_median),
         "min": _wrap_math_function(_list_min),
         "mode": _wrap_math_function(_list_mode),
+        "norm": _wrap_math_function(_norm),
         "perm": _wrap_math_function(_permutations),
         "re": _wrap_math_function(_real_part),
+        "reflect2d": _wrap_math_function(_reflect_2d),
+        "rank": _wrap_math_function(_rank),
         "rows": _wrap_math_function(_matrix_rows),
         "sample_cov": _wrap_math_function(_list_sample_covariance),
         "sample_stdev": _wrap_math_function(_list_sample_stdev),
@@ -495,10 +614,15 @@ def build_builtin_functions():
         "stdev": _wrap_math_function(_list_stdev),
         "sum": _wrap_math_function(_list_sum),
         "sqrt": _wrap_math_function(cmath.sqrt),
+        "rref": _wrap_math_function(_rref),
+        "rotate2d": _wrap_math_function(_rotate_2d),
+        "scale2d": _wrap_math_function(_scale_2d),
+        "shear2d": _wrap_math_function(_shear_2d),
         "solve": _wrap_math_function(_solve),
         "shape": _wrap_math_function(_shape),
         "tan": _wrap_math_function(cmath.tan),
         "tanh": _wrap_math_function(cmath.tanh),
+        "trace": _wrap_math_function(_trace),
         "transpose": _wrap_math_function(_transpose),
         "variance": _wrap_math_function(_list_variance),
     }

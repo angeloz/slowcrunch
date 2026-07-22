@@ -46,7 +46,7 @@ slowcrunch currently provides:
 - `:angles`, `:clear`, `:delete`, `:format`, `:functions`, `:head`, `:help`, `:history`, `:import-vars`, `:load`, `:load-vars`, `:new`, `:rename-session`, `:reset`, `:save`, `:save-vars`, `:saveas`, `:sessions`, `:show`, `:status`, `:tail`, `:tolerance`, and `:vars` commands
 - history filtering with `:history text` and history replay with `:history !index`
 - output modes: `plain`, `scientific`, `engineering`, and `si`
-- topic help such as `:help functions` and `:help vars`
+- hierarchical topic help such as `:help statistics`, `:help matrices`, `:help vectors`, `:help systems`, `:help geometry`, and `:help vars`
 - named or timestamped session save/load
 - variable export, import, and load in JSON or CSV
 - multi-statement programs separated by newline or `;`
@@ -181,7 +181,12 @@ radius = 5.0
 area(r)
 >> :help functions
 Help: functions
-Supported built-in functions are grouped by category below.
+Use a focused topic for detailed help on a group of related functions.
+  :help statistics  List statistics and regression.
+  :help matrices    Matrix construction and operations.
+  :help vectors     Vector operations.
+  :help systems     Linear systems and least-squares fitting.
+  :help geometry    Explicit two-dimensional transformations.
 Define user functions with the form name(param1, param2) = expression.
 >> sqrt(-1)
 i
@@ -498,7 +503,8 @@ slowcrunch currently includes these built-in function groups:
 - Complex and utility: `abs`, `floor`, `ceil`, `re`, `im`, `conj`
 - Statistics: `len`, `sum`, `min`, `max`, `mean`, `median`, `mode`, `variance`, `stdev`, `sample_variance`, `sample_stdev`, `cov`, `sample_cov`, `corr`, `linreg`
 - Combinatorics: `fact`, `perm`, `comb`
-- Linear algebra: `shape`, `rows`, `cols`, `transpose`, `dot`, `matmul`, `det`, `inv`, `solve`
+- Linear algebra: `shape`, `rows`, `cols`, `transpose`, `dot`, `matmul`, `det`, `inv`, `solve`, `least_squares`, `identity`, `diag`, `trace`, `rank`, `rref`, `rotate2d`, `scale2d`, `shear2d`, `reflect2d`, `apply`
+- Vector operations: `norm`, `cross`
 - Formatting helpers: `deg`, `dms`, `hms`
 
 Inverse trigonometric functions and `arg` return angle-typed results, so they follow the active `:angles` mode.
@@ -532,10 +538,60 @@ matmul([[1, 2]], [[3], [4]])        = [[11]]
 det([[4, 7], [2, 6]])                = 10
 inv([[4, 7], [2, 6]])                = [[0.6, -0.7], [-0.2, 0.4]]
 solve([[2, 1], [1, -1]], [5, 1])    = [2, 1]
+identity(3)                           = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+diag([2, 3])                          = [[2, 0], [0, 3]]
+trace([[1, 2], [3, 4]])              = 5
+rank([[1, 2], [2, 4]])               = 1
+rref([[1, 2, -1], [2, 4, 0]])        = [[1, 2, 0], [0, 0, 1]]
+norm([3, 4])                          = 5
+cross([1, 0, 0], [0, 1, 0])           = [0, 0, 1]
 ```
 
 `rows`, `cols`, `transpose`, and `matmul` require matrices. `dot` requires equally sized vectors.
 `det`, `inv`, and `solve` require square matrices; `solve(A, b)` requires one vector value per row of `A`.
+`identity(n)` creates an `n` by `n` identity matrix, while `diag(v)` places vector `v` on a square matrix diagonal.
+`trace(A)` requires a square matrix. `rank(A)` counts independent rows, and `rref(A)` returns reduced row echelon form.
+`norm(v)` returns the Euclidean length of a vector. `cross(a, b)` requires two three-dimensional vectors.
+
+## Geometric Transformations
+
+Use explicit two-dimensional transformation matrices with `apply(A, v)`. `rotate2d(angle)` rotates counter-clockwise, `scale2d(x, y)` scales each axis independently, and `shear2d(xy, yx)` inclines each axis:
+
+```text
+apply(rotate2d(90deg), [1, 0]) = [0, 1]
+apply(scale2d(2, 3), [4, 5])   = [8, 15]
+apply(shear2d(2, 0), [1, 3])   = [7, 3]
+apply(reflect2d([1, 0]), [2, 3]) = [2, -3]
+```
+
+`reflect2d(v)` reflects across the line through the origin in the non-zero direction `v`. For example, `[1, 0]` reflects across the x-axis.
+
+## Solving Linear Systems
+
+You can use `solve(A, b)` without prior matrix experience. Put the coefficients from each equation in one row of `A`, and put the constants on the right-hand side in `b`. The returned list follows the variable order used in the equations.
+
+For example, solve this system for `x` and `y`:
+
+```text
+2x + y = 5
+x - y = 1
+```
+
+The coefficients of `x` and `y` form the rows `[2, 1]` and `[1, -1]`; the constants form `[5, 1]`:
+
+```text
+solve([[2, 1], [1, -1]], [5, 1]) = [2, 1]
+```
+
+The result means `x = 2` and `y = 1`. `solve` reports an error when the system has no unique solution, or when the number of equations and unknowns does not match.
+
+When observations give more equations than unknowns, use `least_squares(A, b)` to find the best-fitting solution. For example, fitting `y = a + bx` to the points `(1, 1)`, `(2, 2)`, and `(3, 2)`:
+
+```text
+least_squares([[1, 1], [1, 2], [1, 3]], [1, 2, 2]) = [0.6666666667, 0.5]
+```
+
+The result means `a` is approximately `0.667` and `b` is `0.5`. `least_squares` requires at least as many equations as unknowns and independent coefficient columns.
 
 ## Multi-Statement Input
 

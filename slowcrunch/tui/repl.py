@@ -8,7 +8,6 @@ except ImportError:  # pragma: no cover
 
 from slowcrunch.core.errors import IncompleteInputError, SessionError, SlowCrunchError
 from slowcrunch.engine import evaluate_expression, parse_input
-from slowcrunch.runtime.builtins import builtin_function_groups
 from slowcrunch.runtime.context import EvaluationContext
 from slowcrunch.runtime.numbers import ANGLE_FORMAT_MODES, FORMAT_MODES, format_value
 from slowcrunch.runtime.session_store import SessionStore
@@ -40,7 +39,11 @@ REPL_COMMANDS = (
     ":vars",
 )
 REPL_KEYWORDS = ("exit", "quit")
-HELP_TOPICS = ("angles", "basics", "clear", "delete", "format", "functions", "head", "history", "new", "reset", "sessions", "show", "status", "tail", "tolerance", "vars")
+HELP_TOPICS = (
+    "basics", "functions", "statistics", "matrices", "vectors", "systems", "geometry",
+    "angles", "clear", "delete", "format", "head", "history", "new", "reset",
+    "sessions", "show", "status", "tail", "tolerance", "vars",
+)
 DELETE_TARGETS = ("function", "session", "var")
 
 
@@ -387,12 +390,17 @@ def _help_lines(topic=None):
             ":vars    Show user-defined variables.",
             "quit     Exit the application.",
             "exit     Exit the application.",
-            "Help topics: angles, basics, clear, delete, format, functions, head, history, new, reset, sessions, show, status, tail, tolerance, vars",
+            "Function topics: functions, statistics, matrices, vectors, systems, geometry.",
+            "Command topics: angles, basics, clear, delete, format, head, history, new, reset, sessions, show, status, tail, tolerance, vars.",
             "Examples:",
             "  :help angles",
             "  :help delete",
             "  :help format",
             "  :help functions",
+            "  :help statistics",
+            "  :help matrices",
+            "  :help systems",
+            "  :help geometry",
             "  :help show",
             "  :help status",
             "  :help sessions",
@@ -492,21 +500,17 @@ def _help_lines(topic=None):
         ]
 
     if topic == "functions":
-        category_lines = [
-            f"{category}: {', '.join(functions)}"
-            for category, functions in builtin_function_groups()
-        ]
         return [
             "Help: functions",
-            "Supported built-in functions are grouped by category below.",
+            "Use a focused topic for detailed help on a group of related functions.",
+            "  :help statistics  List statistics and regression.",
+            "  :help matrices    Matrix construction and operations.",
+            "  :help vectors     Vector operations.",
+            "  :help systems     Linear systems and least-squares fitting.",
+            "  :help geometry    Explicit two-dimensional transformations.",
             "Several built-in functions accept complex arguments.",
-            "Statistics functions currently use list arguments such as [1, 2, 3].",
-            "Complex values are supported by sum, mean, dispersion, covariance, and correlation statistics.",
-            "Complex variance and covariance use conjugate products; ordered statistics and linreg require real lists.",
-            "Linear algebra functions use vectors such as [1, 2] and matrices such as [[1, 2], [3, 4]].",
-            "Use det(A), inv(A), or solve(A, b) for square matrices and linear systems.",
             "Inverse trigonometric functions and arg return angle-typed results and follow :angles.",
-            *category_lines,
+            "Other categories: trigonometric, hyperbolic, exponential and logarithmic, complex, combinatorics, and formatting.",
             "Define user functions with the form name(param1, param2) = expression.",
             "Function parameters are local to the function body.",
             "User-defined functions can reference global variables.",
@@ -518,16 +522,6 @@ def _help_lines(topic=None):
             "  cot(45deg)",
             "  sinh(1)",
             "  exp(2)",
-            "  len([1, 2, 3])",
-            "  sum([1, 2, 3])",
-            "  mean([1, 2, 3])",
-            "  median([1, 2, 3, 4])",
-            "  mode([1, 1, 2])",
-            "  variance([1, 2, 3])",
-            "  sample_stdev([1, 2, 3])",
-            "  cov([1, 2, 3], [2, 4, 6])",
-            "  corr([1, 2, 3], [2, 4, 6])",
-            "  linreg([1, 2, 3], [2, 4, 6])",
             "  fact(5)",
             "  perm(5, 2)",
             "  comb(5, 2)",
@@ -539,6 +533,80 @@ def _help_lines(topic=None):
             "  hms(4830)",
             "  area(5)",
             "  :functions",
+        ]
+
+    if topic == "statistics":
+        return [
+            "Help: statistics",
+            "Use lists such as [1, 2, 3] as statistical data.",
+            "Inspection: len, sum, min, max, mean, median, mode.",
+            "Dispersion: variance, stdev, sample_variance, sample_stdev.",
+            "Paired data: cov, sample_cov, corr, linreg.",
+            "sum, mean, dispersion, covariance, and correlation accept complex values.",
+            "min, max, median, mode, and linreg require real-number lists.",
+            "Examples:",
+            "  mean([1, 2, 4, 5])",
+            "  sample_stdev([1, 2, 3])",
+            "  corr([1, 2, 3], [2, 4, 6])",
+            "  linreg([1, 2, 3], [2, 4, 6])",
+        ]
+
+    if topic == "matrices":
+        return [
+            "Help: matrices",
+            "Use nested lists for matrices, such as [[1, 2], [3, 4]].",
+            "Inspection: shape, rows, cols, transpose, trace, rank, rref.",
+            "Construction: identity(n), diag(v).",
+            "Operations: matmul(A, B), det(A), inv(A).",
+            "Matrices must be non-empty, rectangular, and contain numeric values.",
+            "det, inv, and trace require square matrices.",
+            "Examples:",
+            "  transpose([[1, 2, 3], [4, 5, 6]])",
+            "  matmul([[1, 2]], [[3], [4]])",
+            "  rref([[1, 2, -1], [2, 4, 0]])",
+        ]
+
+    if topic == "vectors":
+        return [
+            "Help: vectors",
+            "Use lists such as [1, 2, 3] for vectors.",
+            "dot(a, b) calculates the dot product of equally sized vectors.",
+            "norm(v) returns Euclidean length and uses magnitudes for complex values.",
+            "cross(a, b) calculates the cross product of two three-dimensional vectors.",
+            "Examples:",
+            "  dot([1, 2, 3], [4, 5, 6])",
+            "  norm([3, 4])",
+            "  cross([1, 0, 0], [0, 1, 0])",
+        ]
+
+    if topic == "systems":
+        return [
+            "Help: systems",
+            "Use solve(A, b) to solve a square linear system with a unique solution.",
+            "Put each equation's coefficients in one row of A and its constant in b.",
+            "For 2x + y = 5 and x - y = 1, use:",
+            "  solve([[2, 1], [1, -1]], [5, 1])",
+            "The result [2, 1] means x = 2 and y = 1.",
+            "Use rref(A) and rank(A) to inspect systems that may not have a unique solution.",
+            "Use least_squares(A, b) for an overdetermined system or a best-fit linear model.",
+            "least_squares requires at least as many rows as columns and independent columns.",
+            "  least_squares([[1, 1], [1, 2], [1, 3]], [1, 2, 2])",
+        ]
+
+    if topic == "geometry":
+        return [
+            "Help: geometry",
+            "rotate2d(angle) creates a two-dimensional counter-clockwise rotation matrix.",
+            "scale2d(x, y) creates a two-dimensional scaling matrix.",
+            "shear2d(xy, yx) creates a two-dimensional shear matrix.",
+            "reflect2d(v) reflects across the line through the origin in direction v.",
+            "apply(A, v) applies a matrix to a compatible vector.",
+            "Angles use the usual calculator angle literals, such as 90deg or pi / 2.",
+            "Examples:",
+            "  apply(rotate2d(90deg), [1, 0])",
+            "  apply(scale2d(2, 3), [4, 5])",
+            "  apply(shear2d(2, 0), [1, 3])",
+            "  apply(reflect2d([1, 0]), [2, 3])",
         ]
 
     if topic == "clear":
@@ -697,7 +765,7 @@ def _help_lines(topic=None):
 
     return [
         f"Unknown help topic '{topic}'.",
-        "Available topics: angles, basics, clear, delete, format, functions, head, history, new, reset, sessions, show, status, tail, tolerance, vars",
+        "Available topics: basics, functions, statistics, matrices, vectors, systems, geometry, angles, clear, delete, format, head, history, new, reset, sessions, show, status, tail, tolerance, vars",
     ]
 
 

@@ -222,6 +222,47 @@ class SlowCrunchEngineTest(unittest.TestCase):
         result, _ = evaluate_expression("solve([[0, 1], [2, 3]], [1, 5])")
         self.assertEqual(result, [1.0, 1.0])
 
+    def test_least_squares_fits_overdetermined_systems(self):
+        result, _ = evaluate_expression("least_squares([[1, 1], [1, 2], [1, 3]], [1, 2, 2])")
+        self.assertAlmostEqual(result[0], 2.0 / 3.0)
+        self.assertAlmostEqual(result[1], 0.5)
+        result, _ = evaluate_expression("least_squares([[1], [i]], [1, i])")
+        self.assertAlmostEqual(result[0], 1.0)
+
+    def test_matrix_construction_and_inspection_functions(self):
+        result, _ = evaluate_expression("identity(3)")
+        self.assertEqual(result, [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+        result, _ = evaluate_expression("diag([2, i])")
+        self.assertEqual(result, [[2.0, 0.0], [0.0, 1j]])
+        result, _ = evaluate_expression("trace([[1, 2], [3, 4]])")
+        self.assertEqual(result, 5.0)
+
+    def test_matrix_rank_and_reduced_row_echelon_form(self):
+        result, _ = evaluate_expression("rank([[1, 2, -1], [2, 4, 0]])")
+        self.assertEqual(result, 2.0)
+        result, _ = evaluate_expression("rref([[1, 2, -1], [2, 4, 0]])")
+        self.assertEqual(result, [[1.0, 2.0, 0.0], [0.0, 0.0, 1.0]])
+
+    def test_vector_norm_and_cross_product(self):
+        result, _ = evaluate_expression("norm([3, 4])")
+        self.assertEqual(result, 5.0)
+        result, _ = evaluate_expression("norm([1 + i, 1 - i])")
+        self.assertEqual(result, 2.0)
+        result, _ = evaluate_expression("cross([1, 0, 0], [0, 1, 0])")
+        self.assertEqual(result, [0.0, 0.0, 1.0])
+
+    def test_explicit_2d_geometric_transformations(self):
+        result, _ = evaluate_expression("rotate2d(90deg)")
+        self.assertEqual(result, [[0.0, -1.0], [1.0, 0.0]])
+        result, _ = evaluate_expression("scale2d(2, 3)")
+        self.assertEqual(result, [[2.0, 0.0], [0.0, 3.0]])
+        result, _ = evaluate_expression("apply(rotate2d(90deg), [1, 0])")
+        self.assertEqual(result, [0.0, 1.0])
+        result, _ = evaluate_expression("apply(shear2d(2, 0), [1, 3])")
+        self.assertEqual(result, [7.0, 3.0])
+        result, _ = evaluate_expression("apply(reflect2d([1, 0]), [2, 3])")
+        self.assertEqual(result, [2.0, -3.0])
+
     def test_matrix_functions_reject_invalid_inputs(self):
         with self.assertRaises(EvaluationError) as error:
             evaluate_expression("shape([[1, 2], [3]])")
@@ -266,6 +307,47 @@ class SlowCrunchEngineTest(unittest.TestCase):
             str(error.exception),
             "Function 'solve' requires the second argument to have one value for each matrix row.",
         )
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("least_squares([[1, 2]], [3])")
+        self.assertEqual(
+            str(error.exception),
+            "Function 'least_squares' requires at least as many rows as columns.",
+        )
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("least_squares([[1, 2], [2, 4]], [1, 2])")
+        self.assertEqual(
+            str(error.exception),
+            "Function 'least_squares' requires linearly independent columns.",
+        )
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("identity(0)")
+        self.assertEqual(str(error.exception), "Function 'identity' expects a positive integer.")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("diag([])")
+        self.assertEqual(str(error.exception), "Function 'diag' does not accept an empty vector.")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("trace([[1, 2, 3], [4, 5, 6]])")
+        self.assertEqual(str(error.exception), "Function 'trace' requires a square matrix.")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("cross([1, 2], [3, 4])")
+        self.assertEqual(str(error.exception), "Function 'cross' expects two vectors of length 3.")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("apply([[1, 2]], [3])")
+        self.assertEqual(
+            str(error.exception),
+            "Function 'apply' requires the column count of the matrix to match the vector length.",
+        )
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("reflect2d([0, 0])")
+        self.assertEqual(str(error.exception), "Function 'reflect2d' requires a non-zero direction vector.")
 
     def test_unary_operators_do_not_support_list_values(self):
         with self.assertRaises(EvaluationError) as error:

@@ -248,14 +248,16 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn(":save-vars PATH [FORMAT] Write user variables to a JSON or CSV file.", lines)
         self.assertIn(":show NAME Show a variable or structured result with TUI formatting.", lines)
         self.assertIn(":tail NAME [COUNT] Show the last items of a list variable.", lines)
-        self.assertIn(
-            "Help topics: angles, basics, clear, delete, format, functions, head, history, new, reset, sessions, show, status, tail, tolerance, vars",
-            lines,
-        )
+        self.assertIn("Function topics: functions, statistics, matrices, vectors, systems, geometry.", lines)
+        self.assertIn("Command topics: angles, basics, clear, delete, format, head, history, new, reset, sessions, show, status, tail, tolerance, vars.", lines)
         self.assertIn("  :help angles", lines)
         self.assertIn("  :help delete", lines)
         self.assertIn("  :help format", lines)
         self.assertIn("  :help functions", lines)
+        self.assertIn("  :help statistics", lines)
+        self.assertIn("  :help matrices", lines)
+        self.assertIn("  :help systems", lines)
+        self.assertIn("  :help geometry", lines)
         self.assertIn("  :help show", lines)
         self.assertIn("  :help sessions", lines)
         self.assertIn("  :help status", lines)
@@ -284,51 +286,23 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
     def test_functions_help_explains_definition_syntax(self):
         lines = _help_lines("functions")
         self.assertIn("Several built-in functions accept complex arguments.", lines)
-        self.assertIn("Supported built-in functions are grouped by category below.", lines)
-        self.assertIn("Statistics functions currently use list arguments such as [1, 2, 3].", lines)
-        self.assertIn("Complex values are supported by sum, mean, dispersion, covariance, and correlation statistics.", lines)
-        self.assertIn("Complex variance and covariance use conjugate products; ordered statistics and linreg require real lists.", lines)
-        self.assertIn("Linear algebra functions use vectors such as [1, 2] and matrices such as [[1, 2], [3, 4]].", lines)
-        self.assertIn("Use det(A), inv(A), or solve(A, b) for square matrices and linear systems.", lines)
+        self.assertIn("Use a focused topic for detailed help on a group of related functions.", lines)
+        self.assertIn("  :help statistics  List statistics and regression.", lines)
+        self.assertIn("  :help matrices    Matrix construction and operations.", lines)
+        self.assertIn("  :help vectors     Vector operations.", lines)
+        self.assertIn("  :help systems     Linear systems and least-squares fitting.", lines)
+        self.assertIn("  :help geometry    Explicit two-dimensional transformations.", lines)
         self.assertIn("Inverse trigonometric functions and arg return angle-typed results and follow :angles.", lines)
         self.assertIn(
             "Define user functions with the form name(param1, param2) = expression.",
             lines,
         )
-        self.assertIn(
-            "Trigonometric: sin, cos, tan, cot, sec, csc",
-            lines,
-        )
-        self.assertIn(
-            "Inverse trigonometric: asin, acos, atan, atan2, acot, asec, acsc, arg",
-            lines,
-        )
-        self.assertIn("Hyperbolic: sinh, cosh, tanh, coth, sech, csch", lines)
-        self.assertIn("Inverse hyperbolic: asinh, acosh, atanh", lines)
-        self.assertIn("Exponential and logarithmic: exp, ln, log, log10, log2, sqrt", lines)
-        self.assertIn("Complex and utility: abs, floor, ceil, re, im, conj", lines)
-        self.assertIn(
-            "Statistics: len, sum, min, max, mean, median, mode, variance, stdev, sample_variance, sample_stdev, cov, sample_cov, corr, linreg",
-            lines,
-        )
-        self.assertIn("Combinatorics: fact, perm, comb", lines)
-        self.assertIn("Linear algebra: shape, rows, cols, transpose, dot, matmul, det, inv, solve", lines)
-        self.assertIn("Formatting helpers: deg, dms, hms", lines)
+        self.assertIn("Other categories: trigonometric, hyperbolic, exponential and logarithmic, complex, combinatorics, and formatting.", lines)
         self.assertIn("  asin(1)", lines)
         self.assertIn("  atan2(1, 1)", lines)
         self.assertIn("  cot(45deg)", lines)
         self.assertIn("  sinh(1)", lines)
         self.assertIn("  exp(2)", lines)
-        self.assertIn("  len([1, 2, 3])", lines)
-        self.assertIn("  sum([1, 2, 3])", lines)
-        self.assertIn("  mean([1, 2, 3])", lines)
-        self.assertIn("  median([1, 2, 3, 4])", lines)
-        self.assertIn("  mode([1, 1, 2])", lines)
-        self.assertIn("  variance([1, 2, 3])", lines)
-        self.assertIn("  sample_stdev([1, 2, 3])", lines)
-        self.assertIn("  cov([1, 2, 3], [2, 4, 6])", lines)
-        self.assertIn("  corr([1, 2, 3], [2, 4, 6])", lines)
-        self.assertIn("  linreg([1, 2, 3], [2, 4, 6])", lines)
         self.assertIn("  fact(5)", lines)
         self.assertIn("  perm(5, 2)", lines)
         self.assertIn("  comb(5, 2)", lines)
@@ -336,6 +310,28 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn("  dms(pi / 6)", lines)
         self.assertIn("  hms(4830)", lines)
         self.assertIn("  :functions", lines)
+
+    def test_function_help_topics_are_focused(self):
+        statistics = _help_lines("statistics")
+        self.assertIn("Inspection: len, sum, min, max, mean, median, mode.", statistics)
+        self.assertIn("Paired data: cov, sample_cov, corr, linreg.", statistics)
+
+        matrices = _help_lines("matrices")
+        self.assertIn("Inspection: shape, rows, cols, transpose, trace, rank, rref.", matrices)
+        self.assertIn("Operations: matmul(A, B), det(A), inv(A).", matrices)
+
+        vectors = _help_lines("vectors")
+        self.assertIn("cross(a, b) calculates the cross product of two three-dimensional vectors.", vectors)
+
+        systems = _help_lines("systems")
+        self.assertIn("Use solve(A, b) to solve a square linear system with a unique solution.", systems)
+        self.assertIn("The result [2, 1] means x = 2 and y = 1.", systems)
+        self.assertIn("Use least_squares(A, b) for an overdetermined system or a best-fit linear model.", systems)
+
+        geometry = _help_lines("geometry")
+        self.assertIn("rotate2d(angle) creates a two-dimensional counter-clockwise rotation matrix.", geometry)
+        self.assertIn("apply(A, v) applies a matrix to a compatible vector.", geometry)
+        self.assertIn("reflect2d(v) reflects across the line through the origin in direction v.", geometry)
 
     def test_format_help_explains_available_modes(self):
         lines = _help_lines("format")
@@ -431,7 +427,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertEqual(lines[0], "Unknown help topic 'unknown'.")
         self.assertEqual(
             lines[1],
-            "Available topics: angles, basics, clear, delete, format, functions, head, history, new, reset, sessions, show, status, tail, tolerance, vars",
+            "Available topics: basics, functions, statistics, matrices, vectors, systems, geometry, angles, clear, delete, format, head, history, new, reset, sessions, show, status, tail, tolerance, vars",
         )
 
     def test_sessions_help_explains_save_and_load(self):
