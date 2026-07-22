@@ -97,10 +97,28 @@ class SlowCrunchEngineTest(unittest.TestCase):
             evaluate_expression("mode([])")
         self.assertEqual(str(error.exception), "Function 'mode' does not accept an empty list.")
 
-    def test_list_statistics_reject_non_real_elements(self):
+    def test_list_statistics_support_complex_numbers(self):
+        result, _ = evaluate_expression("sum([1 + i, 2 - i])")
+        self.assertEqual(result, 3.0)
+        result, _ = evaluate_expression("mean([1 + i, 3 - i])")
+        self.assertEqual(result, 2.0)
+        result, _ = evaluate_expression("variance([1 + i, 1 - i])")
+        self.assertEqual(result, 1.0)
+        result, _ = evaluate_expression("stdev([1 + i, 1 - i])")
+        self.assertEqual(result, 1.0)
+        result, _ = evaluate_expression("cov([1 + i, 1 - i], [1 + i, 1 - i])")
+        self.assertEqual(result, 1.0)
+        result, _ = evaluate_expression("corr([1 + i, 1 - i], [1 + i, 1 - i])")
+        self.assertEqual(result, 1.0)
+
+    def test_ordered_list_statistics_reject_complex_numbers(self):
         with self.assertRaises(EvaluationError) as error:
-            evaluate_expression("sum([1, 2i])")
-        self.assertEqual(str(error.exception), "Function 'sum' expects a list of real numbers.")
+            evaluate_expression("median([1, 2i])")
+        self.assertEqual(str(error.exception), "Function 'median' expects a list of real numbers.")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("linreg([1, 2i], [3, 4])")
+        self.assertEqual(str(error.exception), "Function 'linreg' expects a list of real numbers.")
 
     def test_sample_statistics_require_at_least_two_values(self):
         with self.assertRaises(EvaluationError) as error:
@@ -164,6 +182,90 @@ class SlowCrunchEngineTest(unittest.TestCase):
         with self.assertRaises(EvaluationError) as error:
             evaluate_expression("[1, 2] + [3, 4]")
         self.assertEqual(str(error.exception), "List values do not support arithmetic operators yet.")
+
+    def test_matrix_shape_and_dimensions(self):
+        result, _ = evaluate_expression("shape([1, 2, 3])")
+        self.assertEqual(result, [3.0])
+        result, _ = evaluate_expression("shape([[1, 2], [3, 4]])")
+        self.assertEqual(result, [2.0, 2.0])
+        result, _ = evaluate_expression("rows([[1, 2], [3, 4]]) + cols([[1, 2], [3, 4]])")
+        self.assertEqual(result, 4.0)
+
+    def test_matrix_transpose_dot_and_multiply(self):
+        result, _ = evaluate_expression("transpose([[1, 2, 3], [4, 5, 6]])")
+        self.assertEqual(result, [[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]])
+        result, _ = evaluate_expression("dot([1, 2, 3], [4, 5, 6])")
+        self.assertEqual(result, 32.0)
+        result, _ = evaluate_expression("matmul([[1, 2], [3, 4]], [[5, 6], [7, 8]])")
+        self.assertEqual(result, [[19.0, 22.0], [43.0, 50.0]])
+
+    def test_matrix_functions_accept_complex_entries(self):
+        result, _ = evaluate_expression("dot([1 + i, 2], [3, 4])")
+        self.assertEqual(result, complex(11.0, 3.0))
+        result, _ = evaluate_expression("matmul([[i]], [[i]])")
+        self.assertEqual(result, [[-1.0]])
+
+    def test_determinant_inverse_and_linear_system_solution(self):
+        result, _ = evaluate_expression("det([[4, 7], [2, 6]])")
+        self.assertEqual(result, 10.0)
+        result, _ = evaluate_expression("inv([[4, 7], [2, 6]])")
+        self.assertAlmostEqual(result[0][0], 0.6)
+        self.assertAlmostEqual(result[0][1], -0.7)
+        self.assertAlmostEqual(result[1][0], -0.2)
+        self.assertAlmostEqual(result[1][1], 0.4)
+        result, _ = evaluate_expression("solve([[2, 1], [1, -1]], [5, 1])")
+        self.assertEqual(result, [2.0, 1.0])
+
+    def test_linear_system_functions_support_complex_entries_and_pivoting(self):
+        result, _ = evaluate_expression("inv([[1 + i]])")
+        self.assertEqual(result, [[complex(0.5, -0.5)]])
+        result, _ = evaluate_expression("solve([[0, 1], [2, 3]], [1, 5])")
+        self.assertEqual(result, [1.0, 1.0])
+
+    def test_matrix_functions_reject_invalid_inputs(self):
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("shape([[1, 2], [3]])")
+        self.assertEqual(
+            str(error.exception),
+            "Function 'shape' requires a rectangular matrix; row 2 has 1 item(s), expected 2.",
+        )
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("rows([1, 2])")
+        self.assertEqual(str(error.exception), "Function 'rows' expects argument to be a matrix of rows.")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("dot([1, 2], [3])")
+        self.assertEqual(str(error.exception), "Function 'dot' expects vectors of the same length.")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("dot([1, [2]], [3, 4])")
+        self.assertEqual(
+            str(error.exception),
+            "Function 'dot' expects first argument to be a vector of numbers.",
+        )
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("matmul([[1, 2]], [[3, 4]])")
+        self.assertEqual(
+            str(error.exception),
+            "Function 'matmul' requires the column count of the first matrix to match the row count of the second matrix.",
+        )
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("det([[1, 2, 3], [4, 5, 6]])")
+        self.assertEqual(str(error.exception), "Function 'det' requires a square matrix.")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("inv([[1, 2], [2, 4]])")
+        self.assertEqual(str(error.exception), "Function 'inv' requires a non-singular matrix.")
+
+        with self.assertRaises(EvaluationError) as error:
+            evaluate_expression("solve([[1, 0], [0, 1]], [1])")
+        self.assertEqual(
+            str(error.exception),
+            "Function 'solve' requires the second argument to have one value for each matrix row.",
+        )
 
     def test_unary_operators_do_not_support_list_values(self):
         with self.assertRaises(EvaluationError) as error:

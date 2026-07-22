@@ -498,10 +498,14 @@ slowcrunch currently includes these built-in function groups:
 - Complex and utility: `abs`, `floor`, `ceil`, `re`, `im`, `conj`
 - Statistics: `len`, `sum`, `min`, `max`, `mean`, `median`, `mode`, `variance`, `stdev`, `sample_variance`, `sample_stdev`, `cov`, `sample_cov`, `corr`, `linreg`
 - Combinatorics: `fact`, `perm`, `comb`
+- Linear algebra: `shape`, `rows`, `cols`, `transpose`, `dot`, `matmul`, `det`, `inv`, `solve`
 - Formatting helpers: `deg`, `dms`, `hms`
 
 Inverse trigonometric functions and `arg` return angle-typed results, so they follow the active `:angles` mode.
 Statistics functions currently use list arguments such as `[1, 2, 3]`.
+`sum`, `mean`, variance, standard deviation, covariance, and correlation accept complex values.
+For complex inputs, variance and covariance use conjugate products; variance and standard deviation remain real and non-negative.
+`min`, `max`, `median`, `mode`, and `linreg` remain limited to real-number lists.
 `variance` and `stdev` use population formulas, while `sample_variance` and `sample_stdev` use sample formulas.
 `cov` uses the population covariance formula, while `sample_cov` uses the sample covariance formula.
 `mode` currently requires a unique mode.
@@ -516,6 +520,22 @@ slowcrunch supports list literals as a basic collection type:
 
 Lists can be assigned to variables, shown in the REPL, and saved in sessions.
 Arithmetic operators on lists are intentionally not supported yet.
+
+Vectors use ordinary lists, while matrices use non-empty rectangular lists of numeric rows:
+
+```text
+shape([1, 2, 3])                    = [3]
+shape([[1, 2], [3, 4]])             = [2, 2]
+transpose([[1, 2], [3, 4]])         = [[1, 3], [2, 4]]
+dot([1, 2, 3], [4, 5, 6])           = 32
+matmul([[1, 2]], [[3], [4]])        = [[11]]
+det([[4, 7], [2, 6]])                = 10
+inv([[4, 7], [2, 6]])                = [[0.6, -0.7], [-0.2, 0.4]]
+solve([[2, 1], [1, -1]], [5, 1])    = [2, 1]
+```
+
+`rows`, `cols`, `transpose`, and `matmul` require matrices. `dot` requires equally sized vectors.
+`det`, `inv`, and `solve` require square matrices; `solve(A, b)` requires one vector value per row of `A`.
 
 ## Multi-Statement Input
 

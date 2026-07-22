@@ -499,8 +499,12 @@ def _help_lines(topic=None):
         return [
             "Help: functions",
             "Supported built-in functions are grouped by category below.",
-            "These functions also accept complex arguments.",
+            "Several built-in functions accept complex arguments.",
             "Statistics functions currently use list arguments such as [1, 2, 3].",
+            "Complex values are supported by sum, mean, dispersion, covariance, and correlation statistics.",
+            "Complex variance and covariance use conjugate products; ordered statistics and linreg require real lists.",
+            "Linear algebra functions use vectors such as [1, 2] and matrices such as [[1, 2], [3, 4]].",
+            "Use det(A), inv(A), or solve(A, b) for square matrices and linear systems.",
             "Inverse trigonometric functions and arg return angle-typed results and follow :angles.",
             *category_lines,
             "Define user functions with the form name(param1, param2) = expression.",

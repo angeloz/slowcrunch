@@ -283,9 +283,13 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
     def test_functions_help_explains_definition_syntax(self):
         lines = _help_lines("functions")
-        self.assertIn("These functions also accept complex arguments.", lines)
+        self.assertIn("Several built-in functions accept complex arguments.", lines)
         self.assertIn("Supported built-in functions are grouped by category below.", lines)
         self.assertIn("Statistics functions currently use list arguments such as [1, 2, 3].", lines)
+        self.assertIn("Complex values are supported by sum, mean, dispersion, covariance, and correlation statistics.", lines)
+        self.assertIn("Complex variance and covariance use conjugate products; ordered statistics and linreg require real lists.", lines)
+        self.assertIn("Linear algebra functions use vectors such as [1, 2] and matrices such as [[1, 2], [3, 4]].", lines)
+        self.assertIn("Use det(A), inv(A), or solve(A, b) for square matrices and linear systems.", lines)
         self.assertIn("Inverse trigonometric functions and arg return angle-typed results and follow :angles.", lines)
         self.assertIn(
             "Define user functions with the form name(param1, param2) = expression.",
@@ -308,6 +312,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
             lines,
         )
         self.assertIn("Combinatorics: fact, perm, comb", lines)
+        self.assertIn("Linear algebra: shape, rows, cols, transpose, dot, matmul, det, inv, solve", lines)
         self.assertIn("Formatting helpers: deg, dms, hms", lines)
         self.assertIn("  asin(1)", lines)
         self.assertIn("  atan2(1, 1)", lines)

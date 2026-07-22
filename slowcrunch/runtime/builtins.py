@@ -2,6 +2,16 @@ import cmath
 import math
 
 from slowcrunch.runtime.numbers import format_angle_dms, format_duration_hms, to_degrees
+from slowcrunch.runtime.matrices import (
+    determinant,
+    inverse_matrix,
+    multiply_matrices,
+    require_matrix,
+    require_square_matrix,
+    require_vector,
+    solve_linear_system,
+    vector_or_matrix_shape,
+)
 
 ANGLE_RETURNING_FUNCTIONS = {
     "acos",
@@ -42,6 +52,10 @@ BUILTIN_FUNCTION_GROUPS = (
         ),
     ),
     ("Combinatorics", ("fact", "perm", "comb")),
+    (
+        "Linear algebra",
+        ("shape", "rows", "cols", "transpose", "dot", "matmul", "det", "inv", "solve"),
+    ),
     ("Formatting helpers", ("deg", "dms", "hms")),
 )
 
@@ -124,15 +138,22 @@ def _require_list(value, function_name):
 
 
 def _require_real_number_list(value, function_name, allow_empty=False):
+    items = _require_number_list(value, function_name, allow_empty)
+    if any(isinstance(item, complex) for item in items):
+        raise ValueError(f"Function '{function_name}' expects a list of real numbers.")
+    return [float(item) for item in items]
+
+
+def _require_number_list(value, function_name, allow_empty=False):
     items = _require_list(value, function_name)
     if not items and not allow_empty:
         raise ValueError(f"Function '{function_name}' does not accept an empty list.")
 
     normalized_items = []
     for item in items:
-        if isinstance(item, bool) or isinstance(item, complex) or not isinstance(item, (int, float)):
-            raise ValueError(f"Function '{function_name}' expects a list of real numbers.")
-        normalized_items.append(float(item))
+        if isinstance(item, bool) or not isinstance(item, (int, float, complex)):
+            raise ValueError(f"Function '{function_name}' expects a list of numbers.")
+        normalized_items.append(item)
     return normalized_items
 
 
@@ -158,6 +179,22 @@ def _require_paired_real_number_lists(x_values, y_values, function_name, minimum
     return x_items, y_items
 
 
+def _require_paired_number_lists(x_values, y_values, function_name, minimum_length=1):
+    x_items = _require_minimum_length(
+        _require_number_list(x_values, function_name),
+        function_name,
+        minimum_length,
+    )
+    y_items = _require_minimum_length(
+        _require_number_list(y_values, function_name),
+        function_name,
+        minimum_length,
+    )
+    if len(x_items) != len(y_items):
+        raise ValueError(f"Function '{function_name}' expects lists of the same length.")
+    return x_items, y_items
+
+
 def _require_non_negative_integer(value, function_name, argument_name=None):
     suffix = f" for {argument_name}" if argument_name else ""
     if isinstance(value, bool) or isinstance(value, complex) or not isinstance(value, (int, float)):
@@ -173,7 +210,7 @@ def _list_length(value):
 
 
 def _list_sum(value):
-    return math.fsum(_require_real_number_list(value, "sum", allow_empty=True))
+    return sum(_require_number_list(value, "sum", allow_empty=True))
 
 
 def _list_min(value):
@@ -185,8 +222,8 @@ def _list_max(value):
 
 
 def _list_mean(value):
-    items = _require_real_number_list(value, "mean")
-    return math.fsum(items) / len(items)
+    items = _require_number_list(value, "mean")
+    return sum(items) / len(items)
 
 
 def _list_median(value):
@@ -211,40 +248,46 @@ def _list_mode(value):
 
 
 def _variance_from_items(items):
-    mean_value = math.fsum(items) / len(items)
-    return math.fsum((item - mean_value) ** 2 for item in items) / len(items)
+    mean_value = sum(items) / len(items)
+    return sum(abs(item - mean_value) ** 2 for item in items) / len(items)
 
 
 def _sample_variance_from_items(items):
-    mean_value = math.fsum(items) / len(items)
-    return math.fsum((item - mean_value) ** 2 for item in items) / (len(items) - 1)
+    mean_value = sum(items) / len(items)
+    return sum(abs(item - mean_value) ** 2 for item in items) / (len(items) - 1)
 
 
 def _covariance_from_items(x_items, y_items):
-    x_mean = math.fsum(x_items) / len(x_items)
-    y_mean = math.fsum(y_items) / len(y_items)
-    return math.fsum((x_value - x_mean) * (y_value - y_mean) for x_value, y_value in zip(x_items, y_items)) / len(x_items)
+    x_mean = sum(x_items) / len(x_items)
+    y_mean = sum(y_items) / len(y_items)
+    return sum(
+        (x_value - x_mean) * (y_value - y_mean).conjugate()
+        for x_value, y_value in zip(x_items, y_items)
+    ) / len(x_items)
 
 
 def _sample_covariance_from_items(x_items, y_items):
-    x_mean = math.fsum(x_items) / len(x_items)
-    y_mean = math.fsum(y_items) / len(y_items)
-    return math.fsum((x_value - x_mean) * (y_value - y_mean) for x_value, y_value in zip(x_items, y_items)) / (len(x_items) - 1)
+    x_mean = sum(x_items) / len(x_items)
+    y_mean = sum(y_items) / len(y_items)
+    return sum(
+        (x_value - x_mean) * (y_value - y_mean).conjugate()
+        for x_value, y_value in zip(x_items, y_items)
+    ) / (len(x_items) - 1)
 
 
 def _list_variance(value):
-    items = _require_real_number_list(value, "variance")
+    items = _require_number_list(value, "variance")
     return _variance_from_items(items)
 
 
 def _list_stdev(value):
-    items = _require_real_number_list(value, "stdev")
+    items = _require_number_list(value, "stdev")
     return math.sqrt(_variance_from_items(items))
 
 
 def _list_sample_variance(value):
     items = _require_minimum_length(
-        _require_real_number_list(value, "sample_variance"),
+        _require_number_list(value, "sample_variance"),
         "sample_variance",
         2,
     )
@@ -253,7 +296,7 @@ def _list_sample_variance(value):
 
 def _list_sample_stdev(value):
     items = _require_minimum_length(
-        _require_real_number_list(value, "sample_stdev"),
+        _require_number_list(value, "sample_stdev"),
         "sample_stdev",
         2,
     )
@@ -261,12 +304,12 @@ def _list_sample_stdev(value):
 
 
 def _list_covariance(x_values, y_values):
-    x_items, y_items = _require_paired_real_number_lists(x_values, y_values, "cov")
+    x_items, y_items = _require_paired_number_lists(x_values, y_values, "cov")
     return _covariance_from_items(x_items, y_items)
 
 
 def _list_sample_covariance(x_values, y_values):
-    x_items, y_items = _require_paired_real_number_lists(
+    x_items, y_items = _require_paired_number_lists(
         x_values,
         y_values,
         "sample_cov",
@@ -276,7 +319,7 @@ def _list_sample_covariance(x_values, y_values):
 
 
 def _list_correlation(x_values, y_values):
-    x_items, y_items = _require_paired_real_number_lists(
+    x_items, y_items = _require_paired_number_lists(
         x_values,
         y_values,
         "corr",
@@ -324,6 +367,61 @@ def _combinations(n_value, k_value):
     return math.comb(n_integer, k_integer)
 
 
+def _shape(value):
+    return vector_or_matrix_shape(value, "shape")
+
+
+def _matrix_rows(value):
+    return len(require_matrix(value, "rows"))
+
+
+def _matrix_columns(value):
+    matrix = require_matrix(value, "cols")
+    return len(matrix[0])
+
+
+def _transpose(value):
+    matrix = require_matrix(value, "transpose")
+    return [[matrix[row][column] for row in range(len(matrix))] for column in range(len(matrix[0]))]
+
+
+def _dot(left, right):
+    left_vector = require_vector(left, "dot", "first argument")
+    right_vector = require_vector(right, "dot", "second argument")
+    if len(left_vector) != len(right_vector):
+        raise ValueError("Function 'dot' expects vectors of the same length.")
+    return sum(left_item * right_item for left_item, right_item in zip(left_vector, right_vector))
+
+
+def _matrix_multiply(left, right):
+    left_matrix = require_matrix(left, "matmul", "first argument")
+    right_matrix = require_matrix(right, "matmul", "second argument")
+    if len(left_matrix[0]) != len(right_matrix):
+        raise ValueError(
+            "Function 'matmul' requires the column count of the first matrix to "
+            "match the row count of the second matrix."
+        )
+    return multiply_matrices(left_matrix, right_matrix)
+
+
+def _determinant(value):
+    return determinant(require_square_matrix(value, "det"))
+
+
+def _inverse(value):
+    return inverse_matrix(require_square_matrix(value, "inv"), "inv")
+
+
+def _solve(matrix, vector):
+    coefficient_matrix = require_square_matrix(matrix, "solve", "first argument")
+    right_vector = require_vector(vector, "solve", "second argument")
+    if len(right_vector) != len(coefficient_matrix):
+        raise ValueError(
+            "Function 'solve' requires the second argument to have one value for each matrix row."
+        )
+    return solve_linear_system(coefficient_matrix, right_vector, "solve")
+
+
 def builtin_function_groups():
     return BUILTIN_FUNCTION_GROUPS
 
@@ -362,13 +460,17 @@ def build_builtin_functions():
         "cov": _wrap_math_function(_list_covariance),
         "csc": _wrap_math_function(_csc),
         "csch": _wrap_math_function(_csch),
+        "cols": _wrap_math_function(_matrix_columns),
         "deg": _wrap_math_function(_degrees),
+        "det": _wrap_math_function(_determinant),
         "dms": _wrap_math_function(format_angle_dms),
+        "dot": _wrap_math_function(_dot),
         "exp": _wrap_math_function(cmath.exp),
         "fact": _wrap_math_function(_factorial),
         "floor": _wrap_math_function(math.floor),
         "hms": _wrap_math_function(format_duration_hms),
         "im": _wrap_math_function(_imaginary_part),
+        "inv": _wrap_math_function(_inverse),
         "ln": _wrap_math_function(cmath.log),
         "log": _wrap_math_function(cmath.log),
         "log10": _wrap_math_function(cmath.log10),
@@ -376,12 +478,14 @@ def build_builtin_functions():
         "len": _wrap_math_function(_list_length),
         "linreg": _wrap_math_function(_list_linear_regression),
         "max": _wrap_math_function(_list_max),
+        "matmul": _wrap_math_function(_matrix_multiply),
         "mean": _wrap_math_function(_list_mean),
         "median": _wrap_math_function(_list_median),
         "min": _wrap_math_function(_list_min),
         "mode": _wrap_math_function(_list_mode),
         "perm": _wrap_math_function(_permutations),
         "re": _wrap_math_function(_real_part),
+        "rows": _wrap_math_function(_matrix_rows),
         "sample_cov": _wrap_math_function(_list_sample_covariance),
         "sample_stdev": _wrap_math_function(_list_sample_stdev),
         "sample_variance": _wrap_math_function(_list_sample_variance),
@@ -391,7 +495,10 @@ def build_builtin_functions():
         "stdev": _wrap_math_function(_list_stdev),
         "sum": _wrap_math_function(_list_sum),
         "sqrt": _wrap_math_function(cmath.sqrt),
+        "solve": _wrap_math_function(_solve),
+        "shape": _wrap_math_function(_shape),
         "tan": _wrap_math_function(cmath.tan),
         "tanh": _wrap_math_function(cmath.tanh),
+        "transpose": _wrap_math_function(_transpose),
         "variance": _wrap_math_function(_list_variance),
     }
