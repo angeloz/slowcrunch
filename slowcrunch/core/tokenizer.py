@@ -41,6 +41,10 @@ def tokenize(text):
     while index < len(text):
         char = text[index]
 
+        if char == "#":
+            index = _skip_comment(text, index)
+            continue
+
         if char == "\n":
             tokens.append(Token("NEWLINE", char, index))
             index += 1
@@ -215,5 +219,11 @@ def _match_duration_unit(text, index):
 
 def _skip_inline_whitespace(text, index):
     while index < len(text) and text[index].isspace() and text[index] != "\n":
+        index += 1
+    return index
+
+
+def _skip_comment(text, index):
+    while index < len(text) and text[index] != "\n":
         index += 1
     return index

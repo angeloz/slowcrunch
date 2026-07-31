@@ -28,7 +28,7 @@ class Parser:
         self.skip_newlines()
 
         if self.current().kind == "EOF":
-            raise IncompleteInputError("Unexpected end of expression.")
+            return statements
 
         while self.current().kind != "EOF":
             statements.append(self.parse_statement())

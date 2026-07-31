@@ -31,6 +31,24 @@ class SlowCrunchEngineTest(unittest.TestCase):
         result, _ = evaluate_expression("1.2e6 + 3")
         self.assertEqual(result, 1200003.0)
 
+    def test_inline_comment_is_ignored(self):
+        result, _ = evaluate_expression("1 + 2 # quick check")
+        self.assertEqual(result, 3.0)
+
+    def test_comment_only_input_is_a_no_op(self):
+        context = EvaluationContext()
+        result, context = evaluate_expression("# quick check", context)
+        self.assertIsNone(result)
+        self.assertEqual(context.entries, [])
+
+    def test_parse_input_accepts_comment_only_program(self):
+        program = parse_input("# quick check")
+        self.assertEqual(program.statements, [])
+
+    def test_multiline_comments_are_ignored(self):
+        result, _ = evaluate_expression("radius = 5; # keep for reuse\n# note\nradius * 2")
+        self.assertEqual(result, 10.0)
+
     def test_list_literal(self):
         result, _ = evaluate_expression("[1, 2, 4, 5]")
         self.assertEqual(result, [1.0, 2.0, 4.0, 5.0])

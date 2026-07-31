@@ -14,6 +14,8 @@ def parse_input(text):
 def evaluate_expression(text, context=None):
     context = context or EvaluationContext()
     ast = parse_input(text)
+    if not ast.statements:
+        return None, context
     evaluated = Evaluator(context).evaluate_with_kind(ast)
     result = evaluated.value
     context.record_entry(text, result, evaluated.kind)

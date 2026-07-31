@@ -392,6 +392,7 @@ def _help_lines(topic=None):
             "exit     Exit the application.",
             "Function topics: functions, statistics, matrices, vectors, systems, geometry.",
             "Command topics: angles, basics, clear, delete, format, head, history, new, reset, sessions, show, status, tail, tolerance, vars.",
+            "Use # for end-of-line comments in expressions and commands.",
             "Examples:",
             "  :help angles",
             "  :help delete",
@@ -456,6 +457,7 @@ def _help_lines(topic=None):
             "Use parentheses to group sub-expressions.",
             "Use a trailing ';' to continue a multi-statement program on the next line.",
             "The continuation prompt is '.. ' while additional input is expected.",
+            "Use # to add an end-of-line comment or a full comment line.",
             "Built-in constants include pi, e, and i.",
             "The ans variable stores the last evaluated value.",
             "Examples:",
@@ -474,6 +476,8 @@ def _help_lines(topic=None):
             "  hms(4830)",
             "  :tolerance 1e-12",
             "  1.2e6",
+            "  2 + 2 # quick check",
+            "  # temporary note",
             "  radius = 5;",
             "  .. area(r) = pi * r ^ 2;",
             "  .. area(radius)",
@@ -780,7 +784,7 @@ def _clear_screen():
 
 def _parse_command(line):
     try:
-        return shlex.split(line)
+        return shlex.split(line, comments=True)
     except ValueError as error:
         raise SessionError(f"Invalid command syntax: {error}") from error
 
@@ -1207,6 +1211,9 @@ def run_repl(session_store=None, variable_store=None):
             result, context = evaluate_expression(line, context)
         except SlowCrunchError as error:
             print(f"Error: {error}")
+            continue
+
+        if result is None:
             continue
 
         for rendered_line in _render_value_lines(

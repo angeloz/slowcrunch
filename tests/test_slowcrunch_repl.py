@@ -16,6 +16,7 @@ from slowcrunch.tui.repl import (
     _history_lines,
     _history_replay_entry,
     _list_slice_lines,
+    _parse_command,
     _requires_continuation,
     _status_lines,
     _start_new_session,
@@ -72,11 +73,17 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
     def test_requires_continuation_for_trailing_semicolon(self):
         self.assertTrue(_requires_continuation("radius = 5;"))
 
+    def test_requires_continuation_for_trailing_semicolon_before_comment(self):
+        self.assertTrue(_requires_continuation("radius = 5; # continue"))
+
     def test_requires_continuation_for_open_parenthesis(self):
         self.assertTrue(_requires_continuation("(\n1 + 2"))
 
     def test_complete_multiline_program_does_not_require_continuation(self):
         self.assertFalse(_requires_continuation("radius = 5;\narea(r) = pi * r ^ 2;\narea(radius)"))
+
+    def test_comment_only_input_does_not_require_continuation(self):
+        self.assertFalse(_requires_continuation("# quick note"))
 
     def test_command_completion_filters_repl_commands(self):
         context = EvaluationContext()
@@ -283,6 +290,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn(":tail NAME [COUNT] Show the last items of a list variable.", lines)
         self.assertIn("Function topics: functions, statistics, matrices, vectors, systems, geometry.", lines)
         self.assertIn("Command topics: angles, basics, clear, delete, format, head, history, new, reset, sessions, show, status, tail, tolerance, vars.", lines)
+        self.assertIn("Use # for end-of-line comments in expressions and commands.", lines)
         self.assertIn("  :help angles", lines)
         self.assertIn("  :help delete", lines)
         self.assertIn("  :help format", lines)
@@ -441,6 +449,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn("Durations can use explicit units such as 1h 20m 30s, 45min, or 90s.", lines)
         self.assertIn("Duration arithmetic keeps duration-style output when the result stays a duration.", lines)
         self.assertIn("Use :tolerance to control when very small values are normalized to zero.", lines)
+        self.assertIn("Use # to add an end-of-line comment or a full comment line.", lines)
         self.assertIn("Use deg(x), dms(x), and hms(x) to format angles and durations explicitly.", lines)
         self.assertIn("  2 + 3i", lines)
         self.assertIn("  10k + 25", lines)
@@ -453,6 +462,8 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn("  deg(pi / 2)", lines)
         self.assertIn("  dms(pi / 6)", lines)
         self.assertIn("  hms(4830)", lines)
+        self.assertIn("  2 + 2 # quick check", lines)
+        self.assertIn("  # temporary note", lines)
         self.assertIn("  sqrt(-1)", lines)
 
     def test_unknown_help_topic_lists_available_topics(self):
@@ -471,6 +482,12 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn("Use :status to inspect the current session state.", lines)
         self.assertIn("Use :rename-session name to rename the current saved session on disk.", lines)
         self.assertIn("  :load demo", lines)
+
+    def test_parse_command_ignores_trailing_comment(self):
+        self.assertEqual(_parse_command(":help # note"), [":help"])
+
+    def test_parse_command_preserves_quoted_hash(self):
+        self.assertEqual(_parse_command(':save "demo #1" # note'), [":save", "demo #1"])
 
     def test_status_lines_for_unsaved_session(self):
         context = EvaluationContext()
