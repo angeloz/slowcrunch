@@ -96,6 +96,8 @@ For repeatable local packaging workflows, the repository also includes:
 ```bash
 python3 scripts/build_dist.py
 python3 scripts/install_local.py
+python3 scripts/bump_version.py
+python3 scripts/release.py
 ```
 
 ## Quick Start
@@ -156,6 +158,46 @@ Notes:
 - `scripts/build_dist.py` defaults to `--no-isolation`, which is useful on machines without network access after `build` and `setuptools` are already installed.
 - `scripts/install_local.py` rebuilds by default, then force-reinstalls the newest wheel from `dist/`.
 - Use `python3 scripts/install_local.py --editable` if you want an editable install for day-to-day development instead of testing the packaged wheel.
+
+## Versioning and Release Helpers
+
+The package version lives in [slowcrunch/__init__.py](slowcrunch/__init__.py) as `__version__`.
+`pyproject.toml` reads that value dynamically when building distributions.
+
+Show the current version:
+
+```bash
+python3 scripts/bump_version.py
+```
+
+Bump the version:
+
+```bash
+python3 scripts/bump_version.py --patch
+python3 scripts/bump_version.py --minor
+python3 scripts/bump_version.py --major
+python3 scripts/bump_version.py --version 0.2.0
+```
+
+Run the local release workflow:
+
+```bash
+python3 scripts/release.py
+```
+
+That default workflow:
+
+1. runs the test suite
+2. builds a clean wheel and sdist in `dist/`
+3. installs the freshly built wheel into your user environment
+
+Useful variants:
+
+```bash
+python3 scripts/release.py --patch
+python3 scripts/release.py --minor --skip-install
+python3 scripts/release.py --editable
+```
 
 ## Demo
 

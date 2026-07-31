@@ -52,6 +52,26 @@ python3 scripts/build_dist.py
 
 That helper defaults to `--no-isolation`, which is convenient when the build backend is already installed locally and network access is unavailable.
 
+## Version Management
+
+The package version is stored in `slowcrunch/__init__.py` as `__version__`.
+Build metadata reads that value dynamically from `pyproject.toml`.
+
+Inspect the current version:
+
+```bash
+python3 scripts/bump_version.py
+```
+
+Update it:
+
+```bash
+python3 scripts/bump_version.py --patch
+python3 scripts/bump_version.py --minor
+python3 scripts/bump_version.py --major
+python3 scripts/bump_version.py --version 0.2.0
+```
+
 ## Install the Current Build
 
 Install the latest wheel from `dist/` into the current user Python environment with:
@@ -66,6 +86,28 @@ For editable installs:
 
 ```bash
 python3 scripts/install_local.py --editable
+```
+
+## Local Release Workflow
+
+Run the full local workflow with:
+
+```bash
+python3 scripts/release.py
+```
+
+By default this will:
+
+- run the test suite
+- build a clean wheel and sdist in `dist/`
+- install the newest wheel into the current user Python environment
+
+Examples:
+
+```bash
+python3 scripts/release.py --patch
+python3 scripts/release.py --minor --skip-install
+python3 scripts/release.py --editable
 ```
 
 ## Standalone Binaries
