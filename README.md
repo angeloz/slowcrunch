@@ -131,6 +131,13 @@ python3 -m unittest discover -v
 
 `slowcrunch` now supports standard Python packaging for an installable `slowcrunch` command on Linux, macOS, and Windows.
 
+The repository and release channels intentionally serve different audiences:
+
+- `main` tracks the latest development version from source
+- GitHub Releases are the official stable distribution channel
+- official wheels, sdists, and future executables should be attached as GitHub Release assets
+- GitHub Actions artifacts are useful for CI and preview outputs, but are not the official permanent download channel
+
 For future standalone binaries, the preferred direction is `PyOxidizer` with `python-build-standalone`, rather than direct Cosmopolitan integration. Cosmopolitan is a better fit for native C/C++ programs, while `slowcrunch` is a Python application.
 
 See [docs/distribution.md](docs/distribution.md) for the current packaging and distribution strategy.
@@ -163,6 +170,7 @@ Notes:
 
 The package version lives in [slowcrunch/__init__.py](slowcrunch/__init__.py) as `__version__`.
 `pyproject.toml` reads that value dynamically when building distributions.
+Official release tags should use the form `vX.Y.Z` for package version `X.Y.Z`.
 
 Show the current version:
 
@@ -190,6 +198,7 @@ That default workflow:
 1. runs the test suite
 2. builds a clean wheel and sdist in `dist/`
 3. installs the freshly built wheel into your user environment
+4. prints the corresponding suggested Git tag in `vX.Y.Z` form for the GitHub Release
 
 Useful variants:
 
@@ -198,6 +207,11 @@ python3 scripts/release.py --patch
 python3 scripts/release.py --minor --skip-install
 python3 scripts/release.py --editable
 ```
+
+For users:
+
+- install from a source checkout when you explicitly want the latest development state
+- download from GitHub Releases when you want an official stable build
 
 ## Demo
 

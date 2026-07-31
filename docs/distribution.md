@@ -5,6 +5,11 @@
 - standard Python packaging for an installable `slowcrunch` CLI command
 - future standalone binaries for users who do not want to manage Python themselves
 
+The project also uses two user-facing delivery channels:
+
+- the `main` branch for the latest development source state
+- GitHub Releases for official stable builds
+
 ## Installable CLI
 
 The primary supported distribution path is standard Python packaging.
@@ -32,6 +37,11 @@ The source checkout path remains available:
 ```bash
 python3 -m slowcrunch
 ```
+
+Users who clone the repository should expect `main` to move ahead of the latest stable release.
+That is the correct path for testing the newest development state, not the recommended path for stable installs.
+
+For official stable installs, prefer GitHub Releases and their attached assets.
 
 ## Build Artifacts
 
@@ -72,6 +82,8 @@ python3 scripts/bump_version.py --major
 python3 scripts/bump_version.py --version 0.2.0
 ```
 
+For official releases, the Git tag should use the form `vX.Y.Z` for package version `X.Y.Z`.
+
 ## Install the Current Build
 
 Install the latest wheel from `dist/` into the current user Python environment with:
@@ -101,6 +113,7 @@ By default this will:
 - run the test suite
 - build a clean wheel and sdist in `dist/`
 - install the newest wheel into the current user Python environment
+- print the corresponding suggested GitHub Release tag
 
 Examples:
 
@@ -109,6 +122,27 @@ python3 scripts/release.py --patch
 python3 scripts/release.py --minor --skip-install
 python3 scripts/release.py --editable
 ```
+
+## Standalone Binaries
+
+## Official Release Assets
+
+Official user-facing downloadable files should be attached to a GitHub Release, not kept only as GitHub Actions artifacts.
+
+Current official release assets should include:
+
+- `slowcrunch-X.Y.Z.tar.gz`
+- `slowcrunch-X.Y.Z-py3-none-any.whl`
+
+Future standalone executables should also be uploaded as GitHub Release assets, with one asset per supported OS and architecture.
+
+GitHub Actions artifacts remain useful for:
+
+- temporary CI outputs
+- preview builds
+- debugging failed workflows
+
+They should not be treated as the permanent official download channel.
 
 ## Standalone Binaries
 

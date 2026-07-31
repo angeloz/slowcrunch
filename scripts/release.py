@@ -5,11 +5,27 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS_DIR = Path(__file__).resolve().parent
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "dist"
+
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+import bump_version
 
 
 def _run(command):
     subprocess.run(command, check=True, cwd=PROJECT_ROOT)
+
+
+def release_tag_for_version(version):
+    return f"v{version}"
+
+
+def current_release_tag():
+    return release_tag_for_version(
+        bump_version.format_version(bump_version.read_current_version())
+    )
 
 
 def build_release_commands(
@@ -142,6 +158,12 @@ def main():
     for command in commands:
         _run(command)
 
+    version = bump_version.format_version(bump_version.read_current_version())
+    tag = release_tag_for_version(version)
+    print(f"Current package version: {version}")
+    print(f"Suggested release tag: {tag}")
+    print("Official stable builds should be uploaded as GitHub Release assets.")
+    print("GitHub Actions artifacts remain suitable only for temporary CI outputs.")
     print("Release workflow completed.")
     return 0
 

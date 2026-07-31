@@ -63,3 +63,8 @@ class SlowCrunchPackageTest(unittest.TestCase):
         self.assertEqual(commands[0], [release.sys.executable, str(release.PROJECT_ROOT / "scripts" / "bump_version.py"), "--patch"])
         self.assertEqual(commands[1], [release.sys.executable, "-m", "unittest", "discover", "-v"])
         self.assertEqual(commands[2], [release.sys.executable, str(release.PROJECT_ROOT / "scripts" / "install_local.py"), "--editable"])
+
+    def test_release_tag_format_matches_package_version(self):
+        release = _load_script_module("release")
+        self.assertEqual(release.release_tag_for_version("0.2.0"), "v0.2.0")
+        self.assertEqual(release.current_release_tag(), f"v{slowcrunch.__version__}")
