@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import io
+from pathlib import Path
 
 import slowcrunch
 from slowcrunch.core.errors import EvaluationError, SessionError
@@ -28,10 +29,15 @@ from slowcrunch.tui.repl import (
 )
 
 
+def _session_store(tempdir):
+    temp_path = Path(tempdir)
+    return SessionStore(temp_path / ".slowcrunch-sessions", mirror_root=temp_path)
+
+
 class SlowCrunchReplCompletionTest(unittest.TestCase):
     def test_autosave_creates_and_updates_timestamped_session(self):
         with tempfile.TemporaryDirectory() as tempdir:
-            store = SessionStore(tempdir)
+            store = _session_store(tempdir)
             context, state = _start_new_session(store)
             self.assertRegex(state.current_name, r"^slowcrunch-\d{8}-\d{6}$")
 
@@ -45,10 +51,10 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
     def test_autosave_uses_the_active_named_session(self):
         with tempfile.TemporaryDirectory() as tempdir:
-            store = SessionStore(tempdir)
+            store = _session_store(tempdir)
             context, state = _start_new_session(store)
-            named_session = store.save(context, "experiment")
-            state = SessionState(named_session.name, named_session.saved_at)
+            named_session = store.save(context, "experiment", mirror_enabled=True)
+            state = SessionState(named_session.name, named_session.saved_at, False, True)
 
             _, context = evaluate_expression("radius = 5", context)
             _autosave_session(context, store, state)
@@ -56,31 +62,35 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
             self.assertEqual(session.name, "experiment")
             self.assertEqual(loaded_context.get_variable("radius"), 5.0)
+            self.assertTrue((Path(tempdir) / "experiment.json").exists())
 
     def test_start_named_session_creates_empty_named_session(self):
         with tempfile.TemporaryDirectory() as tempdir:
-            store = SessionStore(tempdir)
+            store = _session_store(tempdir)
             context, state = _start_named_session(store, "nuovasessione")
             loaded_context, session = store.load("nuovasessione")
 
             self.assertEqual(state.current_name, "nuovasessione")
             self.assertFalse(state.dirty)
+            self.assertTrue(state.mirror_enabled)
             self.assertEqual(session.name, "nuovasessione")
             self.assertEqual(loaded_context.entries, [])
             self.assertEqual(context.entries, [])
+            self.assertTrue((Path(tempdir) / "nuovasessione.json").exists())
 
     def test_start_named_session_loads_existing_named_session(self):
         with tempfile.TemporaryDirectory() as tempdir:
-            store = SessionStore(tempdir)
+            store = _session_store(tempdir)
             context = EvaluationContext()
             _, context = evaluate_expression("radius = 5", context)
-            saved_session = store.save(context, "nuovasessione")
+            saved_session = store.save(context, "nuovasessione", mirror_enabled=True)
 
             loaded_context, state = _start_named_session(store, "nuovasessione")
 
             self.assertEqual(state.current_name, "nuovasessione")
             self.assertEqual(state.last_saved_at, saved_session.saved_at)
             self.assertFalse(state.dirty)
+            self.assertTrue(state.mirror_enabled)
             self.assertEqual(loaded_context.get_variable("radius"), 5.0)
 
     def test_function_completion_adds_open_parenthesis(self):
@@ -520,7 +530,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
 
     def test_version_command_prints_installed_version(self):
         with tempfile.TemporaryDirectory() as tempdir:
-            store = SessionStore(tempdir)
+            store = _session_store(tempdir)
             with patch("builtins.input", side_effect=[":version", "quit"]):
                 with patch("sys.stdout", new_callable=io.StringIO) as stdout:
                     from slowcrunch.tui.repl import run_repl
@@ -534,6 +544,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn("Every session is created and saved automatically after calculations and persistent changes.", lines)
         self.assertIn("New automatic sessions use names such as slowcrunch-20260722-143000.", lines)
         self.assertIn("Use :save [name] or :saveas name to choose the name used by later automatic saves.", lines)
+        self.assertIn("Explicitly named sessions are also mirrored as NAME.json in the working directory.", lines)
         self.assertIn("Use :status to inspect the current session state.", lines)
         self.assertIn("Use :rename-session name to rename the current saved session on disk.", lines)
         self.assertIn("  :load demo", lines)

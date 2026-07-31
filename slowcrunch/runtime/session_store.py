@@ -21,11 +21,20 @@ class SessionInfo:
     name: str
     saved_at: str
     path: Path
+    mirror_path: Path | None = None
+    mirror_enabled: bool = False
+
+
+class SessionWriteError(SessionError):
+    def __init__(self, message, session):
+        super().__init__(message)
+        self.session = session
 
 
 class SessionStore:
-    def __init__(self, root=None):
+    def __init__(self, root=None, mirror_root=None):
         self.root = Path(root) if root is not None else self.default_root()
+        self.mirror_root = Path(mirror_root) if mirror_root is not None else Path.cwd()
 
     @staticmethod
     def default_root():
@@ -34,14 +43,33 @@ class SessionStore:
             return Path(configured)
         return Path.cwd() / DEFAULT_SESSION_DIR
 
-    def save(self, context, name=None):
+    def save(self, context, name=None, mirror_enabled=False, allow_existing_mirror=False):
         self.root.mkdir(parents=True, exist_ok=True)
         session_name = self._normalize_name(name) if name else self._available_generated_name()
+        should_mirror = bool(name is not None and mirror_enabled)
         saved_at = datetime.now().astimezone().isoformat(timespec="seconds")
         path = self._path_for(session_name)
-        payload = self._serialize_context(context, session_name, saved_at)
+        payload = self._serialize_context(context, session_name, saved_at, should_mirror)
         path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-        return SessionInfo(session_name, saved_at, path)
+        session = SessionInfo(session_name, saved_at, path, mirror_enabled=should_mirror)
+        if not should_mirror:
+            return session
+
+        try:
+            mirror_path = self._write_mirror_payload(
+                session_name,
+                payload,
+                allow_existing=allow_existing_mirror,
+            )
+        except SessionError as error:
+            raise SessionWriteError(str(error), session) from error
+        return SessionInfo(
+            session_name,
+            saved_at,
+            path,
+            mirror_path=mirror_path,
+            mirror_enabled=True,
+        )
 
     def load(self, name):
         session_name = self._normalize_name(name)
@@ -61,6 +89,8 @@ class SessionStore:
             data["name"],
             data["saved_at"],
             path,
+            mirror_path=self._mirror_path_for(data["name"]) if data.get("mirror_enabled") else None,
+            mirror_enabled=bool(data.get("mirror_enabled", False)),
         )
 
     def list_sessions(self):
@@ -106,15 +136,48 @@ class SessionStore:
             raise SessionError(f"Session file is not valid JSON: {old_path.name}") from error
 
         data["name"] = new_session_name
+        data["mirror_enabled"] = True
         new_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
         old_path.unlink()
-        return SessionInfo(new_session_name, data["saved_at"], new_path)
+        session = SessionInfo(
+            new_session_name,
+            data["saved_at"],
+            new_path,
+            mirror_enabled=True,
+        )
+        try:
+            mirror_path = self._write_mirror_payload(new_session_name, data)
+        except SessionError as error:
+            raise SessionWriteError(str(error), session) from error
+        return SessionInfo(
+            new_session_name,
+            data["saved_at"],
+            new_path,
+            mirror_path=mirror_path,
+            mirror_enabled=True,
+        )
 
-    def _serialize_context(self, context, name, saved_at):
+    def has_managed_current_dir_mirror(self, name):
+        session_name = self._normalize_name(name)
+        path = self._mirror_path_for(session_name)
+        if not path.exists():
+            return False
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return False
+        return (
+            data.get("version") == SESSION_VERSION
+            and data.get("name") == session_name
+            and bool(data.get("mirror_enabled", False))
+        )
+
+    def _serialize_context(self, context, name, saved_at, mirror_enabled):
         return {
             "version": SESSION_VERSION,
             "name": name,
             "saved_at": saved_at,
+            "mirror_enabled": mirror_enabled,
             "ans": encode_value(context.variables["ans"]),
             "ans_kind": context.get_variable_kind("ans"),
             "zero_tolerance": context.zero_tolerance,
@@ -157,6 +220,22 @@ class SessionStore:
 
     def _path_for(self, name):
         return self.root / f"{name}{SESSION_FILE_SUFFIX}"
+
+    def _mirror_path_for(self, name):
+        return self.mirror_root / f"{name}{SESSION_FILE_SUFFIX}"
+
+    def _write_mirror_payload(self, session_name, payload, allow_existing=False):
+        self.mirror_root.mkdir(parents=True, exist_ok=True)
+        path = self._mirror_path_for(session_name)
+        if path.exists() and not allow_existing:
+            raise SessionError(f"Current directory session file already exists: {path.name}")
+        try:
+            path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        except OSError as error:
+            raise SessionError(
+                f"Could not write current directory session file '{path.name}': {error}"
+            ) from error
+        return path
 
     def _normalize_name(self, name):
         normalized = re.sub(r"[^A-Za-z0-9_-]+", "-", name.strip()).strip("-_")

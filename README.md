@@ -444,6 +444,8 @@ Longer-term goals:
 
 Sessions are written as JSON files in `.slowcrunch-sessions/` by default. A new session is created automatically when the REPL starts and saved again after every calculation or persistent state change, so its expression history and results are retained.
 
+When a session has an explicit name, slowcrunch also writes a second JSON file with that name in the directory where you started the command, such as `demo.json`.
+
 Examples:
 
 ```text
@@ -457,7 +459,7 @@ Examples:
 :tolerance 1e-12
 ```
 
-Automatic sessions use names such as `slowcrunch-20260722-143000`. If another session starts in the same second, slowcrunch adds a numeric suffix instead of overwriting it. Use `:save name` or `:saveas name` to select a descriptive name; later automatic saves continue to update that named session.
+Automatic sessions use names such as `slowcrunch-20260722-143000`. If another session starts in the same second, slowcrunch adds a numeric suffix instead of overwriting it. Use `:save name` or `:saveas name` to select a descriptive name; later automatic saves continue to update that named session in `.slowcrunch-sessions/` and in the current directory as `name.json`.
 
 ## Session Management Commands
 

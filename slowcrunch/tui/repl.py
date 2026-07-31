@@ -11,7 +11,7 @@ from slowcrunch.core.errors import IncompleteInputError, SessionError, SlowCrunc
 from slowcrunch.engine import evaluate_expression, parse_input
 from slowcrunch.runtime.context import EvaluationContext
 from slowcrunch.runtime.numbers import ANGLE_FORMAT_MODES, FORMAT_MODES, format_value
-from slowcrunch.runtime.session_store import SessionStore
+from slowcrunch.runtime.session_store import SessionStore, SessionWriteError
 from slowcrunch.runtime.variable_store import SUPPORTED_VARIABLE_FORMATS, VariableStore
 
 REPL_COMMANDS = (
@@ -54,6 +54,7 @@ class SessionState:
     current_name: str | None = None
     last_saved_at: str | None = None
     dirty: bool = False
+    mirror_enabled: bool = False
 
 
 @dataclass
@@ -733,6 +734,7 @@ def _help_lines(topic=None):
             "Every session is created and saved automatically after calculations and persistent changes.",
             "New automatic sessions use names such as slowcrunch-20260722-143000.",
             "Use :save [name] or :saveas name to choose the name used by later automatic saves.",
+            "Explicitly named sessions are also mirrored as NAME.json in the working directory.",
             "Use :sessions to list available saved sessions.",
             "Use :status to inspect the current session state.",
             "Use :load name to replace the current session with a saved one.",
@@ -830,19 +832,61 @@ def _mark_session_saved(session_state, session):
     session_state.current_name = session.name
     session_state.last_saved_at = session.saved_at
     session_state.dirty = False
+    session_state.mirror_enabled = session.mirror_enabled
 
 
 def _mark_session_dirty(session_state):
     session_state.dirty = True
 
 
+def _can_overwrite_current_dir_mirror(session_store, session_state, name, mirror_enabled):
+    if not mirror_enabled or name is None:
+        return False
+    return (
+        session_state.current_name == name
+        and session_state.mirror_enabled
+        and session_store.has_managed_current_dir_mirror(name)
+    )
+
+
+def _save_session(context, session_store, session_state, name=None, mirror_enabled=None):
+    target_name = session_state.current_name if name is None else name
+    target_mirror_enabled = session_state.mirror_enabled if mirror_enabled is None else mirror_enabled
+    try:
+        session = session_store.save(
+            context,
+            target_name,
+            mirror_enabled=target_mirror_enabled,
+            allow_existing_mirror=_can_overwrite_current_dir_mirror(
+                session_store,
+                session_state,
+                target_name,
+                target_mirror_enabled,
+            ),
+        )
+    except SessionWriteError as error:
+        _mark_session_saved(session_state, error.session)
+        raise SessionError(str(error)) from error
+    _mark_session_saved(session_state, session)
+    return session
+
+
+def _rename_saved_session(session_store, session_state, new_name):
+    try:
+        session = session_store.rename(session_state.current_name, new_name)
+    except SessionWriteError as error:
+        _mark_session_saved(session_state, error.session)
+        raise SessionError(str(error)) from error
+    _mark_session_saved(session_state, session)
+    return session
+
+
 def _autosave_session(context, session_store, session_state):
     try:
-        session = session_store.save(context, session_state.current_name)
+        session = _save_session(context, session_store, session_state)
     except OSError as error:
         _mark_session_dirty(session_state)
         raise SessionError(f"Automatic session save failed: {error}") from error
-    _mark_session_saved(session_state, session)
     return session
 
 
@@ -857,11 +901,11 @@ def _start_named_session(session_store, session_name):
     normalized_name = session_store._normalize_name(session_name)
     if normalized_name in session_store.session_names():
         context, session = session_store.load(normalized_name)
-        return context, SessionState(session.name, session.saved_at, False)
+        return context, SessionState(session.name, session.saved_at, False, True)
 
     context = EvaluationContext()
-    session = session_store.save(context, normalized_name)
-    return context, SessionState(session.name, session.saved_at, False)
+    session = session_store.save(context, normalized_name, mirror_enabled=True)
+    return context, SessionState(session.name, session.saved_at, False, True)
 
 
 def _variable_file_arguments(arguments, usage, allow_force=False):
@@ -1150,16 +1194,26 @@ def run_repl(session_store=None, variable_store=None, session_name=None):
                     if len(parts) > 2:
                         raise SessionError("Usage: :save [name]")
                     name = parts[1] if len(parts) == 2 else session_state.current_name
-                    session = session_store.save(context, name)
-                    _mark_session_saved(session_state, session)
+                    session = _save_session(
+                        context,
+                        session_store,
+                        session_state,
+                        name=name,
+                        mirror_enabled=session_state.mirror_enabled if len(parts) == 1 else True,
+                    )
                     print(f"Saved session '{session.name}' at {session.saved_at}")
                     continue
 
                 if command == ":saveas":
                     if len(parts) != 2:
                         raise SessionError("Usage: :saveas name")
-                    session = session_store.save(context, parts[1])
-                    _mark_session_saved(session_state, session)
+                    session = _save_session(
+                        context,
+                        session_store,
+                        session_state,
+                        name=parts[1],
+                        mirror_enabled=True,
+                    )
                     print(f"Saved session '{session.name}' at {session.saved_at}")
                     continue
 
@@ -1205,8 +1259,7 @@ def run_repl(session_store=None, variable_store=None, session_name=None):
                         raise SessionError("No active saved session to rename.")
                     if session_state.dirty:
                         raise SessionError("Save changes before renaming the current session.")
-                    session = session_store.rename(session_state.current_name, parts[1])
-                    _mark_session_saved(session_state, session)
+                    session = _rename_saved_session(session_store, session_state, parts[1])
                     print(f"Renamed session to '{session.name}'.")
                     continue
 
@@ -1231,6 +1284,7 @@ def run_repl(session_store=None, variable_store=None, session_name=None):
                         if session_state.current_name == name:
                             session_state.current_name = None
                             session_state.last_saved_at = None
+                            session_state.mirror_enabled = False
                             _autosave_session(context, session_store, session_state)
                         print(f"Deleted session '{name}'.")
                         continue
