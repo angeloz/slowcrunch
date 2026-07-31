@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .slowcrunch-sessions/
 .DS_Store
+build/
+dist/
+*.egg-info/

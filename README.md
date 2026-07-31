@@ -64,12 +64,59 @@ demos/        asciinema recordings and related assets
 tests/        automated tests for the engine
 ```
 
+## Installation
+
+Install `slowcrunch` as a normal CLI command:
+
+```bash
+python3 -m pip install .
+```
+
+For editable development installs:
+
+```bash
+python3 -m pip install -e .
+```
+
+You can also install it with tool-oriented workflows such as:
+
+```bash
+uv tool install .
+pipx install .
+```
+
+After installation, launch the calculator with:
+
+```bash
+slowcrunch
+```
+
+For repeatable local packaging workflows, the repository also includes:
+
+```bash
+python3 scripts/build_dist.py
+python3 scripts/install_local.py
+```
+
 ## Quick Start
 
-Launch the TUI:
+Launch the TUI from a source checkout:
 
 ```bash
 python3 -m slowcrunch
+```
+
+Build distributable artifacts:
+
+```bash
+python3 -m pip install build
+python3 -m build
+```
+
+Or use the repository helper:
+
+```bash
+python3 scripts/build_dist.py
 ```
 
 Run the test suite:
@@ -77,6 +124,38 @@ Run the test suite:
 ```bash
 python3 -m unittest discover -v
 ```
+
+## Distribution Notes
+
+`slowcrunch` now supports standard Python packaging for an installable `slowcrunch` command on Linux, macOS, and Windows.
+
+For future standalone binaries, the preferred direction is `PyOxidizer` with `python-build-standalone`, rather than direct Cosmopolitan integration. Cosmopolitan is a better fit for native C/C++ programs, while `slowcrunch` is a Python application.
+
+See [docs/distribution.md](docs/distribution.md) for the current packaging and distribution strategy.
+
+## Development Packaging Workflow
+
+As the project evolves, the recommended local loop is:
+
+1. Run the test suite.
+2. Build the current source tree into a wheel and sdist.
+3. Install the freshly built wheel into your user environment.
+4. Launch `slowcrunch` from the installed command and test manually.
+
+Commands:
+
+```bash
+python3 -m unittest discover -v
+python3 scripts/build_dist.py
+python3 scripts/install_local.py
+slowcrunch
+```
+
+Notes:
+
+- `scripts/build_dist.py` defaults to `--no-isolation`, which is useful on machines without network access after `build` and `setuptools` are already installed.
+- `scripts/install_local.py` rebuilds by default, then force-reinstalls the newest wheel from `dist/`.
+- Use `python3 scripts/install_local.py --editable` if you want an editable install for day-to-day development instead of testing the packaged wheel.
 
 ## Demo
 

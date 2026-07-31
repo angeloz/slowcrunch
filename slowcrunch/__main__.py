@@ -1,5 +1,10 @@
 from slowcrunch.tui.repl import run_repl
 
 
-if __name__ == "__main__":
+def main():
     run_repl()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
