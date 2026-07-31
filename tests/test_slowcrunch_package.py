@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -23,12 +24,27 @@ def _load_script_module(name):
 class SlowCrunchPackageTest(unittest.TestCase):
     def test_package_exposes_version(self):
         self.assertRegex(slowcrunch.__version__, r"^\d+\.\d+\.\d+$")
+        self.assertEqual(slowcrunch.version_string(), f"slowcrunch {slowcrunch.__version__}")
 
     def test_main_entry_point_runs_repl(self):
         with patch("slowcrunch.__main__.run_repl") as run_repl:
             exit_code = __main__.main()
 
-        run_repl.assert_called_once_with()
+        run_repl.assert_called_once_with(session_name=None)
+        self.assertEqual(exit_code, 0)
+
+    def test_main_entry_point_prints_version(self):
+        with patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            exit_code = __main__.main(["--version"])
+
+        self.assertEqual(stdout.getvalue().strip(), slowcrunch.version_string())
+        self.assertEqual(exit_code, 0)
+
+    def test_main_entry_point_forwards_named_session(self):
+        with patch("slowcrunch.__main__.run_repl") as run_repl:
+            exit_code = __main__.main(["nuovasessione"])
+
+        run_repl.assert_called_once_with(session_name="nuovasessione")
         self.assertEqual(exit_code, 0)
 
     def test_bump_version_helpers(self):

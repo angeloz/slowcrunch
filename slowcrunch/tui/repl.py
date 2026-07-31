@@ -6,6 +6,7 @@ try:
 except ImportError:  # pragma: no cover
     readline = None
 
+from slowcrunch import version_string
 from slowcrunch.core.errors import IncompleteInputError, SessionError, SlowCrunchError
 from slowcrunch.engine import evaluate_expression, parse_input
 from slowcrunch.runtime.context import EvaluationContext
@@ -36,13 +37,14 @@ REPL_COMMANDS = (
     ":status",
     ":tail",
     ":tolerance",
+    ":version",
     ":vars",
 )
 REPL_KEYWORDS = ("exit", "quit")
 HELP_TOPICS = (
     "basics", "functions", "statistics", "matrices", "vectors", "systems", "geometry",
     "angles", "clear", "delete", "format", "head", "history", "new", "reset",
-    "sessions", "show", "status", "tail", "tolerance", "vars",
+    "sessions", "show", "status", "tail", "tolerance", "vars", "version",
 )
 DELETE_TARGETS = ("function", "session", "var")
 
@@ -387,11 +389,12 @@ def _help_lines(topic=None):
             ":status   Show the current session state.",
             ":tail NAME [COUNT] Show the last items of a list variable.",
             ":tolerance [VALUE] Show or change the zero tolerance.",
+            ":version Show the installed slowcrunch version.",
             ":vars    Show user-defined variables.",
             "quit     Exit the application.",
             "exit     Exit the application.",
             "Function topics: functions, statistics, matrices, vectors, systems, geometry.",
-            "Command topics: angles, basics, clear, delete, format, head, history, new, reset, sessions, show, status, tail, tolerance, vars.",
+            "Command topics: angles, basics, clear, delete, format, head, history, new, reset, sessions, show, status, tail, tolerance, vars, version.",
             "Use # for end-of-line comments in expressions and commands.",
             "Examples:",
             "  :help angles",
@@ -407,6 +410,7 @@ def _help_lines(topic=None):
             "  :help sessions",
             "  :help tolerance",
             "  :help vars",
+            "  :help version",
             "  2 + 3 * 4",
             "  radius = 5",
             "  10k",
@@ -767,9 +771,19 @@ def _help_lines(topic=None):
             "  sin(360deg)",
         ]
 
+    if topic == "version":
+        return [
+            "Help: version",
+            "Use :version to print the installed slowcrunch version.",
+            "Use slowcrunch --version or slowcrunch -v from the shell for the same information.",
+            "Examples:",
+            "  :version",
+            "  slowcrunch --version",
+        ]
+
     return [
         f"Unknown help topic '{topic}'.",
-        "Available topics: basics, functions, statistics, matrices, vectors, systems, geometry, angles, clear, delete, format, head, history, new, reset, sessions, show, status, tail, tolerance, vars",
+        "Available topics: basics, functions, statistics, matrices, vectors, systems, geometry, angles, clear, delete, format, head, history, new, reset, sessions, show, status, tail, tolerance, vars, version",
     ]
 
 
@@ -839,6 +853,17 @@ def _start_new_session(session_store):
     return context, session_state
 
 
+def _start_named_session(session_store, session_name):
+    normalized_name = session_store._normalize_name(session_name)
+    if normalized_name in session_store.session_names():
+        context, session = session_store.load(normalized_name)
+        return context, SessionState(session.name, session.saved_at, False)
+
+    context = EvaluationContext()
+    session = session_store.save(context, normalized_name)
+    return context, SessionState(session.name, session.saved_at, False)
+
+
 def _variable_file_arguments(arguments, usage, allow_force=False):
     force_requested = _command_force_requested(arguments) if allow_force else False
     cleaned_arguments = _command_arguments(arguments) if allow_force else list(arguments)
@@ -904,12 +929,15 @@ def _read_statement():
         return text
 
 
-def run_repl(session_store=None, variable_store=None):
+def run_repl(session_store=None, variable_store=None, session_name=None):
     display_settings = DisplaySettings()
     session_store = session_store or SessionStore()
     variable_store = variable_store or VariableStore()
     try:
-        context, session_state = _start_new_session(session_store)
+        if session_name is None:
+            context, session_state = _start_new_session(session_store)
+        else:
+            context, session_state = _start_named_session(session_store, session_name)
     except SessionError as error:
         print(f"Error: {error}")
         return
@@ -920,7 +948,7 @@ def run_repl(session_store=None, variable_store=None):
     print(
         "Commands: :angles, :clear, :delete, :format, :functions, :head, :help, :history, :import-vars, "
         ":load, :load-vars, :new, :rename-session, :reset, :save, :save-vars, :saveas, :sessions, "
-        ":show, :status, :tail, :tolerance, :vars"
+        ":show, :status, :tail, :tolerance, :vars, :version"
     )
 
     while True:
@@ -1006,6 +1034,12 @@ def run_repl(session_store=None, variable_store=None):
                     if len(parts) != 1:
                         raise SessionError("Usage: :status")
                     _print_status(context, session_state, display_settings)
+                    continue
+
+                if command == ":version":
+                    if len(parts) != 1:
+                        raise SessionError("Usage: :version")
+                    print(version_string())
                     continue
 
                 if command == ":tolerance":

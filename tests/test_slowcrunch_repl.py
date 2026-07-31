@@ -1,6 +1,9 @@
 import tempfile
 import unittest
+from unittest.mock import patch
+import io
 
+import slowcrunch
 from slowcrunch.core.errors import EvaluationError, SessionError
 from slowcrunch.engine import evaluate_expression
 from slowcrunch.runtime.context import EvaluationContext
@@ -18,6 +21,7 @@ from slowcrunch.tui.repl import (
     _list_slice_lines,
     _parse_command,
     _requires_continuation,
+    _start_named_session,
     _status_lines,
     _start_new_session,
     _variable_value_lines,
@@ -51,6 +55,32 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
             loaded_context, session = store.load("experiment")
 
             self.assertEqual(session.name, "experiment")
+            self.assertEqual(loaded_context.get_variable("radius"), 5.0)
+
+    def test_start_named_session_creates_empty_named_session(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            context, state = _start_named_session(store, "nuovasessione")
+            loaded_context, session = store.load("nuovasessione")
+
+            self.assertEqual(state.current_name, "nuovasessione")
+            self.assertFalse(state.dirty)
+            self.assertEqual(session.name, "nuovasessione")
+            self.assertEqual(loaded_context.entries, [])
+            self.assertEqual(context.entries, [])
+
+    def test_start_named_session_loads_existing_named_session(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            context = EvaluationContext()
+            _, context = evaluate_expression("radius = 5", context)
+            saved_session = store.save(context, "nuovasessione")
+
+            loaded_context, state = _start_named_session(store, "nuovasessione")
+
+            self.assertEqual(state.current_name, "nuovasessione")
+            self.assertEqual(state.last_saved_at, saved_session.saved_at)
+            self.assertFalse(state.dirty)
             self.assertEqual(loaded_context.get_variable("radius"), 5.0)
 
     def test_function_completion_adds_open_parenthesis(self):
@@ -99,6 +129,11 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         context = EvaluationContext()
         matches = _completion_candidates(context, ":to", ":to", 0)
         self.assertEqual(matches, [":tolerance"])
+
+    def test_version_command_is_completable(self):
+        context = EvaluationContext()
+        matches = _completion_candidates(context, ":ve", ":ve", 0)
+        self.assertEqual(matches, [":version"])
 
     def test_angle_mode_is_completable(self):
         context = EvaluationContext()
@@ -289,7 +324,8 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn(":show NAME Show a variable or structured result with TUI formatting.", lines)
         self.assertIn(":tail NAME [COUNT] Show the last items of a list variable.", lines)
         self.assertIn("Function topics: functions, statistics, matrices, vectors, systems, geometry.", lines)
-        self.assertIn("Command topics: angles, basics, clear, delete, format, head, history, new, reset, sessions, show, status, tail, tolerance, vars.", lines)
+        self.assertIn(":version Show the installed slowcrunch version.", lines)
+        self.assertIn("Command topics: angles, basics, clear, delete, format, head, history, new, reset, sessions, show, status, tail, tolerance, vars, version.", lines)
         self.assertIn("Use # for end-of-line comments in expressions and commands.", lines)
         self.assertIn("  :help angles", lines)
         self.assertIn("  :help delete", lines)
@@ -303,6 +339,7 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn("  :help sessions", lines)
         self.assertIn("  :help status", lines)
         self.assertIn("  :help tolerance", lines)
+        self.assertIn("  :help version", lines)
 
     def test_angles_help_explains_available_modes(self):
         lines = _help_lines("angles")
@@ -388,6 +425,13 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertIn("Use a non-negative floating-point value, such as 1e-12.", lines)
         self.assertIn("  :tolerance 1e-12", lines)
 
+    def test_version_help_explains_cli_and_repl_usage(self):
+        lines = _help_lines("version")
+        self.assertIn("Use :version to print the installed slowcrunch version.", lines)
+        self.assertIn("Use slowcrunch --version or slowcrunch -v from the shell for the same information.", lines)
+        self.assertIn("  :version", lines)
+        self.assertIn("  slowcrunch --version", lines)
+
     def test_reset_help_explains_in_memory_reset(self):
         lines = _help_lines("reset")
         self.assertIn("Use :reset to clear the current in-memory session.", lines)
@@ -471,8 +515,19 @@ class SlowCrunchReplCompletionTest(unittest.TestCase):
         self.assertEqual(lines[0], "Unknown help topic 'unknown'.")
         self.assertEqual(
             lines[1],
-            "Available topics: basics, functions, statistics, matrices, vectors, systems, geometry, angles, clear, delete, format, head, history, new, reset, sessions, show, status, tail, tolerance, vars",
+            "Available topics: basics, functions, statistics, matrices, vectors, systems, geometry, angles, clear, delete, format, head, history, new, reset, sessions, show, status, tail, tolerance, vars, version",
         )
+
+    def test_version_command_prints_installed_version(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = SessionStore(tempdir)
+            with patch("builtins.input", side_effect=[":version", "quit"]):
+                with patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                    from slowcrunch.tui.repl import run_repl
+
+                    run_repl(session_store=store)
+
+        self.assertIn(slowcrunch.version_string(), stdout.getvalue())
 
     def test_sessions_help_explains_save_and_load(self):
         lines = _help_lines("sessions")
